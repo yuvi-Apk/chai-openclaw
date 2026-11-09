@@ -1,0 +1,20 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "appwrite",
+    "megablog",
+    "chai",
+    "tinymce",
+    "reduxjs",
+    "bunfig",
+    "tailwindcss",
+    "dotenv",
+    "exmple",
+    "sgp",
+    "yuvi",
+    "openclaw"
+  ],
+  "ignoreRegExpList": ["\\b[0-9a-f]{20}\\b"],
+  "ignorePaths": ["node_modules", "dist", "bun.lock"]
+}

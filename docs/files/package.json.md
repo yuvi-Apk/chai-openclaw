@@ -68,6 +68,7 @@
   "@clack/core": "^1.5.1",
   "@clack/prompts": "^1.8.1",
   "@types/node": "^26.6.6",
+  "chalk": "^6.0.1",
   "commander": "^15.1.0",
   "figlet": "^1.12.0",
   "prettier": "^3.9.10"
@@ -79,14 +80,15 @@
 - `peerDependencies`: "I expect TypeScript v5 to be available." It isn't bundled.
 - `dependencies`: the libraries the app uses:
   - `commander`: parses CLI commands ([concepts/commander-cli.md](../concepts/commander-cli.md)). It is **used now** in index.ts.
-  - `@clack/prompts` / `@clack/core`: nice interactive terminal menus and inputs. Ready for the "pick CLI or Telegram" step.
-  - `figlet`: turns text into big ASCII-art letters. Ready for the `wakeup` banner.
+  - `@clack/prompts` / `@clack/core`: nice interactive terminal menus. They power the "pick CLI or Telegram" menu ([concepts/clack-prompts.md](../concepts/clack-prompts.md)).
+  - `figlet`: turns text into big ASCII-art letters for the `wakeup` banner ([concepts/figlet-ascii-art.md](../concepts/figlet-ascii-art.md)).
+  - `chalk`: adds colours to terminal text, like the banner gradient and green/grey messages ([concepts/chalk-terminal-colors.md](../concepts/chalk-terminal-colors.md)).
   - `@types/node`: type info for Node-style APIs like `process.argv`.
   - `prettier`: the code formatter ([concepts/prettier.md](../concepts/prettier.md)).
 
 **Why it's used in general:** Listing dependencies with version ranges lets anyone run `bun install` and get compatible versions.
 
-**Why it's used here:** The project installs tools ahead of time for the features it plans to build: banner, menu, and modes.
+**Why it's used here:** `commander` runs the CLI in [index.ts](index.ts.md). `figlet`, `chalk`, and `@clack/prompts` together build the wakeup screen in [terminal-ui/wakeup.ts](terminal-ui/wakeup.ts.md).
 
 💡 **Tip:** `^1.8.1` means "1.8.1 or any newer **1.x** version", but never 2.0. The `^` allows safe minor updates.
 
@@ -96,4 +98,4 @@
 - `"type": "module"` turns on `import` and top-level `await`.
 - `"bin"` is what turns `index.ts` into the `yuvi` command.
 - `dependencies` are needed at runtime; `devDependencies` are only for development.
-- `figlet` and `@clack/prompts` are installed for upcoming features.
+- `figlet` (letters), `chalk` (colours), and `@clack/prompts` (menu) work as a team to build the wakeup screen.

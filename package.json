@@ -7,7 +7,7 @@
     "explain": "bash scripts/explain-staged.sh"
   },
   "bin": {
-    "yuvi":"./index.ts"
+    "yuvi": "./index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
@@ -19,6 +19,7 @@
     "@clack/core": "^1.5.1",
     "@clack/prompts": "^1.8.1",
     "@types/node": "^26.6.6",
+    "chalk": "^6.0.1",
     "commander": "^15.1.0",
     "figlet": "^1.12.0",
     "prettier": "^3.9.10"
