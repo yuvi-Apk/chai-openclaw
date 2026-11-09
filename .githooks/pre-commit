@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Runs Code Buddy before each commit so docs/LEARNING.md explains what you're committing.
+bash "$(git rev-parse --show-toplevel)/scripts/explain-staged.sh" || true
+exit 0

@@ -3,6 +3,9 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "explain": "bash scripts/explain-staged.sh"
+  },
   "bin": {
     "yuvi":"./index.ts"
   },
