@@ -1,0 +1,23 @@
+{
+  "name": "chai-openclaw",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "yuvi":"./index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@clack/core": "^1.5.1",
+    "@clack/prompts": "^1.8.1",
+    "@types/node": "^26.6.6",
+    "commander": "^15.1.0",
+    "figlet": "^1.12.0",
+    "prettier": "^3.9.10"
+  }
+}
