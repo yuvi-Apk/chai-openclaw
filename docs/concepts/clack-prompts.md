@@ -35,4 +35,22 @@ outro(`You picked ${choice}`);         // close the session
 
 💡 **Tip:** With TypeScript you can write `select<MyType>(...)`. Then, after the `isCancel` check, the answer is correctly typed as `MyType`.
 
-**Used in:** [files/terminal-ui/wakeup.ts.md](../files/terminal-ui/wakeup.ts.md)
+## Text input and log lines
+
+```ts
+const message = await text({
+  message: "You:",
+  placeholder: "type something...",
+  validate: (value) => (!value || !value.trim() ? "Say something first!" : undefined),
+});
+
+log.step("Working...");     // a step marker
+log.info("Some help text"); // an info box
+log.message("A reply");     // a plain message line
+```
+
+- **`text`**: asks the user to type a line. It returns the string, or the cancel symbol.
+- **`validate`**: runs on every submit. Return a string to show an error and ask again. Return `undefined` to accept the answer.
+- **`log.*`**: prints lines that match clack's style, so your own output looks like part of the same conversation.
+
+**Used in:** [files/terminal-ui/wakeup.ts.md](../files/terminal-ui/wakeup.ts.md), [files/modes/cli.ts.md](../files/modes/cli.ts.md), [files/modes/agent/orchestrator.ts.md](../files/modes/agent/orchestrator.ts.md)

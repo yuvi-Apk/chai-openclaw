@@ -18,10 +18,14 @@
   "dependencies": {
     "@clack/core": "^1.5.1",
     "@clack/prompts": "^1.8.1",
+    "@openrouter/ai-sdk-provider": "^3.1.0",
     "@types/node": "^26.6.6",
+    "ai": "^7.0.166",
     "chalk": "^6.0.1",
     "commander": "^15.1.0",
     "figlet": "^1.12.0",
+    "marked": "^18.2.0",
+    "marked-terminal": "^8.0.0",
     "prettier": "^3.9.10"
   }
 }

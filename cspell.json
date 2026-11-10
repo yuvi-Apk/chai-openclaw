@@ -13,7 +13,10 @@
     "exmple",
     "sgp",
     "yuvi",
-    "openclaw"
+    "openclaw",
+    "wakeup",
+    "colour",
+    "openrouter"
   ],
   "ignoreRegExpList": ["\\b[0-9a-f]{20}\\b"],
   "ignorePaths": ["node_modules", "dist", "bun.lock"]

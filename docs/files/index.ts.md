@@ -2,7 +2,7 @@
 
 **Purpose:** This is the **front door** of `yuvi`. When you run `yuvi` in a terminal, this is the file that runs. It describes the program and lists its commands.
 
-**Where it fits:** [package.json](package.json.md) points its `"bin"` → `yuvi` entry at this file. It uses the `commander` library (listed in package.json) to understand what you typed. It hands the banner and mode menu over to [terminal-ui/wakeup.ts](terminal-ui/wakeup.ts.md). It is type-checked using the rules in [tsconfig.json](tsconfig.json.md).
+**Where it fits:** [package.json](package.json.md) points its `"bin"` → `yuvi` entry at this file. It uses the `commander` library (listed in package.json) to understand what you typed. It hands the banner and mode menu over to [terminal-ui/wakeup.ts](terminal-ui/wakeup.ts.md), then starts [modes/cli.ts](modes/cli.ts.md) if you choose CLI. It is type-checked using the rules in [tsconfig.json](tsconfig.json.md).
 
 ---
 
@@ -27,15 +27,17 @@
 ```ts
 import { Command } from "commander";
 import { wakeup } from "./terminal-ui/wakeup";
+import { runCliMode } from "./modes/cli";
 ```
 
 **What it does:**
 - Line 1 pulls the `Command` class out of the `commander` **package**, which lives in `node_modules`.
 - Line 2 pulls the `wakeup` function out of **our own file**, `terminal-ui/wakeup.ts`. The `./` means "start from this folder". You don't need the `.ts` ending because Bun finds it for you.
+- Line 3 pulls in `runCliMode`, the CLI-mode menu loop from [modes/cli.ts](modes/cli.ts.md).
 
 **Why it's used in general:** `import` is the modern ES Module way to use code from other files or packages. A plain name like `"commander"` means a package. A path starting with `./` means one of your own files. See [concepts/es-modules.md](../concepts/es-modules.md).
 
-**Why it's used here:** `Command` is the building block for the whole CLI ([concepts/commander-cli.md](../concepts/commander-cli.md)). `wakeup` holds all the "pretty terminal" work, which keeps this front-door file short and tidy.
+**Why it's used here:** `Command` is the building block for the whole CLI ([concepts/commander-cli.md](../concepts/commander-cli.md)). `wakeup` holds all the "pretty terminal" work, and `runCliMode` holds CLI mode. That keeps this front-door file short and tidy.
 
 ---
 
@@ -72,8 +74,8 @@ program
         const mode = await wakeup();
         if (!mode) process.exit(0);
 
-        // TODO: start the chosen mode once it's built
-        if (mode === "cli") console.log("CLI mode coming soon...");
+        // TODO: start Telegram mode once it's built
+        if (mode === "cli") await runCliMode();
         else console.log("Telegram mode coming soon...");
     })
 ```
@@ -84,11 +86,11 @@ program
 - `.action(async () => { ... })` is the function that runs when the user types `yuvi wakeup`. It is `async` because it waits for the user to pick from a menu.
 - `await wakeup()` shows the banner and the mode menu, then gives back `"cli"`, `"telegram"`, or `null` if the user cancelled.
 - `if (!mode) process.exit(0);` means that if the user cancelled, the program stops quietly. Exit code `0` means "finished normally, no error".
-- The last two lines check which mode was chosen. For now, each one prints a "coming soon" message.
+- The last two lines check which mode was chosen. `"cli"` starts CLI mode with `await runCliMode()`, which runs until you exit its menu. Telegram mode still prints a "coming soon" message.
 
 **Why it's used in general:** Sub-commands keep a CLI organised. `git commit` and `git push` work the same way: one tool, many actions. Keeping the action short and calling helpers from other files is a common pattern. The command file only decides *what happens next*.
 
-**Why it's used here:** `wakeup` is `yuvi`'s starting point. The menu logic lives in [terminal-ui/wakeup.ts](terminal-ui/wakeup.ts.md), and this action is the **switchboard** that will route you to CLI mode or Telegram mode once they're built. Because `mode` is typed as `"cli" | "telegram" | null`, TypeScript knows that after the `if (!mode)` check it must be one of the two modes. See [concepts/typescript-union-types.md](../concepts/typescript-union-types.md).
+**Why it's used here:** `wakeup` is `yuvi`'s starting point. The menu logic lives in [terminal-ui/wakeup.ts](terminal-ui/wakeup.ts.md), and this action is the **switchboard** that routes you to [CLI mode](modes/cli.ts.md) now, and to Telegram mode once it's built. The `await` matters: it keeps the program alive while you're using CLI mode. Because `mode` is typed as `"cli" | "telegram" | null`, TypeScript knows that after the `if (!mode)` check it must be one of the two modes. See [concepts/typescript-union-types.md](../concepts/typescript-union-types.md).
 
 💡 **Tip:** The `// TODO:` comment marks a spot to come back to. Many editors can list every TODO in a project.
 
@@ -118,4 +120,4 @@ await program.parseAsync(process.argv)
 - Commander builds the CLI from chained calls: `.name()`, `.command()`, `.action()`.
 - `.version()` and the automatic `--help` give you useful features without writing them.
 - `parseAsync(process.argv)` is the "go" button. Without it, nothing runs.
-- `wakeup` calls the banner and mode picker from `terminal-ui/wakeup.ts`, exits cleanly on cancel, and will later start the chosen mode.
+- `wakeup` calls the banner and mode picker from `terminal-ui/wakeup.ts`, exits cleanly on cancel, and starts CLI mode (Telegram is coming later).

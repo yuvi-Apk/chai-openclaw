@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 import { wakeup } from "./terminal-ui/wakeup";
+import { runCliMode } from "./modes/cli";
 
 const program = new Command();
 
@@ -17,8 +18,8 @@ program
         const mode = await wakeup();
         if (!mode) process.exit(0);
 
-        // TODO: start the chosen mode once it's built
-        if (mode === "cli") console.log("CLI mode coming soon...");
+        // TODO: start Telegram mode once it's built
+        if (mode === "cli") await runCliMode();
         else console.log("Telegram mode coming soon...");
     })
 
