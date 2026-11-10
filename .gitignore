@@ -32,3 +32,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# yuvi agent: cache and saved sessions (memory.md and config.json are meant to be committed)
+.yuvi/cache
+.yuvi/sessions

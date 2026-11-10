@@ -42,7 +42,7 @@ export async function runCliMode(): Promise<void> {
             message: "What do you want to do?",
             options: [
                 { value: "agent", label: "Agent", hint: "Run an agent" },
-                { value: "plan", label: "Plan", hint: "Plan mode" },
+                { value: "plan", label: "Plan", hint: "read-only: explore and plan, change nothing" },
 
                 { value: "chat", label: "Chat", hint: "talk to yuvi" },
 
@@ -62,10 +62,13 @@ export async function runCliMode(): Promise<void> {
 
         if (action === "agent") {
             await runAgentMode();
+            continue;
         }
 
         if (action === "plan") {
-            console.log("plan mode")
+            // Same agent, read-only: it explores and writes a plan.
+            await runAgentMode({ mode: "plan" });
+            continue;
         }
 
         // Chat: keep chatting until the user cancels, then return to the menu

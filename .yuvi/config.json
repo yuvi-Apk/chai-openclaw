@@ -1,0 +1,5 @@
+{
+  "checkCommands": [
+    "bunx tsc --noEmit"
+  ]
+}
