@@ -65,7 +65,12 @@ function groupPending(pending: ActionLog[]): ReviewGroup[] {
 
 /** Print every staged change with its diff, so the user decides on what they can see. */
 function printStaged(groups: ReviewGroup[]): void {
-    console.log(chalk.bold(`\nStaged changes (${groups.length}):`));
+    console.log(
+        chalk.bold(
+            `\nyuvi wants to make ${groups.length} change${groups.length === 1 ? "" : "s"}. Nothing is saved yet:`,
+        ),
+    );
+    console.log(chalk.dim("Green lines (+) are added, red lines (-) are removed."));
     for (const g of groups) {
         console.log(`\n${chalk.cyan("▌")} ${chalk.bold(g.label)}`);
         if (g.patch) console.log(colorizeDiff(g.patch, 60));
@@ -97,11 +102,11 @@ export async function runApprovalFlow(
     }
 
     const choice = await select({
-        message: "Apply staged changes?",
+        message: "Save these changes to your files?",
         options: [
-            { value: "all", label: "Approve and apply all" },
-            { value: "select", label: "Review one by one" },
-            { value: "cancel", label: "Reject all" },
+            { value: "all", label: "Yes, save all changes" },
+            { value: "select", label: "Let me decide file by file" },
+            { value: "cancel", label: "No, discard all changes", hint: "your files stay as they are" },
         ],
     });
 
@@ -120,9 +125,9 @@ export async function runApprovalFlow(
             const opt = await select({
                 message: chalk.bold(g.label),
                 options: [
-                    { value: "accept", label: "Accept" },
+                    { value: "accept", label: "Yes, save this change" },
                     { value: "diff", label: "Show full diff", hint: g.patch ? "" : "N/A" },
-                    { value: "reject", label: "Reject" },
+                    { value: "reject", label: "No, discard this change" },
                 ],
             });
 
@@ -201,7 +206,9 @@ export async function approveCommand(
     if (!process.stdin.isTTY) return false;
 
     return session.ui.withPrompt(async () => {
-        console.log(`\n${chalk.yellow("▌")} ${chalk.bold("Run command")}  ${chalk.cyan(cmd)}`);
+        console.log(
+            `\n${chalk.yellow("▌")} ${chalk.bold("yuvi wants to run a command on your computer:")}\n  ${chalk.cyan(cmd)}`,
+        );
         const choice = await select({
             message: "Allow this command?",
             options: [
@@ -212,7 +219,7 @@ export async function approveCommand(
                         value: "always",
                         label: `Yes, and don't ask again for "${prefix}" commands this session`,
                     }]),
-                { value: "no", label: "No" },
+                { value: "no", label: "No, don't run it" },
             ],
         });
         if (isCancel(choice) || choice === "no") return false;

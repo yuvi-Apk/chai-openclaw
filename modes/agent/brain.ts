@@ -175,6 +175,11 @@ async function runLoop(
     let lastError = "";
     let failed: string | undefined;
 
+    // The SDK prints stream errors with a stack trace to the console. The
+    // error is shown once, in plain words, by ui.errorBox instead.
+    const consoleError = console.error;
+    console.error = () => undefined;
+
     try {
         const result = await agent.stream({
             messages: session.messages,
@@ -243,6 +248,7 @@ async function runLoop(
     } catch (error) {
         if (!state.controller.signal.aborted && !failed) failed = errorText(error);
     } finally {
+        console.error = consoleError;
         ui.onSteer = (text) => state.queuedSteers.push(text);
     }
 
@@ -255,7 +261,7 @@ async function runLoop(
     }
 
     if (failed) {
-        ui.failure(`Model call failed: ${failed.slice(0, 400)}`);
+        ui.errorBox(failed);
         session.messages = [
             ...snapshot.messages,
             { role: "assistant", content: `(The run failed with an error: ${failed.slice(0, 300)})` },
@@ -379,11 +385,16 @@ export async function runTurn(
         const kind = session.mode === "plan" ? "feature" : await triage(userText, controller.signal);
         if (controller.signal.aborted) return;
         state.profile = PROFILES[kind];
+        const kindLabel: Record<TaskKind, string> = {
+            question: "Answering your question",
+            small_change: "Making a small change",
+            feature: "Building a feature — I will plan first",
+            debug: "Finding and fixing the problem",
+            refactor: "Restructuring code — I will plan first",
+        };
         ui.print(
             chalk.dim(
-                `  ◇ ${kind.replace("_", " ")} · effort ${state.profile.effort}` +
-                (state.profile.requirePlan && session.mode !== "plan" ? " · plan first" : "") +
-                (session.mode !== "ask" ? ` · ${session.mode} mode` : ""),
+                `  ◇ ${session.mode === "plan" ? "Plan mode — I will only read and write a plan" : kindLabel[kind]}`,
             ),
         );
         // A new task starts with an empty plan, so the plan gate applies to it.

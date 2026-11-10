@@ -471,8 +471,8 @@ export class AgentUI {
                 this.flushStreams();
                 break;
             case "error":
+                // The brain shows the error once, in plain words.
                 this.flushStreams();
-                this.print(chalk.red(`✗ ${short(errorText(part.error), 300)}`));
                 break;
             default:
                 break;
@@ -507,6 +507,21 @@ export class AgentUI {
         this.print(chalk.green(`✓ ${text}`));
     }
 
+    /** Show an error in plain words, with what the user can do about it. */
+    errorBox(raw: string): void {
+        const { problem, fix } = explainError(raw);
+        const lines = [
+            "",
+            chalk.red.bold(`✗ ${problem}`),
+            `  ${chalk.bold("What to do:")} ${fix}`,
+        ];
+        const detail = raw.replace(/\s+/g, " ").trim();
+        if (detail && detail !== problem) {
+            lines.push(chalk.dim(`  Technical detail: ${short(detail, 220)}`));
+        }
+        this.print(lines.join("\n"));
+    }
+
     failure(text: string): void {
         this.print(chalk.red(`✗ ${text}`));
     }
@@ -539,6 +554,80 @@ export class AgentUI {
         if (usage.cost > 0) parts.push(`$${usage.cost.toFixed(4)} session`);
         this.print(chalk.dim(`\n  ${parts.join(" · ")}`));
     }
+}
+
+/** Translate a raw provider or network error into plain words and a next step. */
+export function explainError(raw: string): { problem: string; fix: string } {
+    const t = raw.toLowerCase();
+    const has = (...words: string[]) => words.some((w) => t.includes(w));
+
+    if (
+        has("no auth credentials", "missing api key", "api key is missing", "missing authentication", "authentication header") ||
+        (has("401") && !has("model"))
+    ) {
+        return {
+            problem: "Your OpenRouter key is missing or not accepted.",
+            fix: "Type / and choose “Set API key”, then paste a key from https://openrouter.ai/keys",
+        };
+    }
+    if (has("invalid api key", "unauthorized", "user not found")) {
+        return {
+            problem: "OpenRouter did not accept your API key.",
+            fix: "Type / and choose “Set API key” and paste a fresh key from https://openrouter.ai/keys",
+        };
+    }
+    if (has("402", "insufficient credits", "payment required", "more credits")) {
+        return {
+            problem: "Your OpenRouter account has no credits left for this model.",
+            fix: "Add credits at https://openrouter.ai/credits, or type / → “Change AI model” and pick a free one (for example openrouter/free).",
+        };
+    }
+    if (has("429", "rate limit", "rate-limit", "too many requests")) {
+        return {
+            problem: "The AI service is busy or you hit its rate limit.",
+            fix: "Wait a minute and send your message again. Free models have low limits; a paid model is more reliable.",
+        };
+    }
+    if (has("no endpoints found", "tool use", "support tool", "function calling")) {
+        return {
+            problem: "This AI model cannot use tools, so it cannot work as an agent.",
+            fix: "Type / → “Change AI model” and choose a model that supports tool calling.",
+        };
+    }
+    if (has("not a valid model", "model not found", "no such model", "404")) {
+        return {
+            problem: "The AI model name was not found.",
+            fix: "Type / → “Change AI model” and enter a model id from https://openrouter.ai/models",
+        };
+    }
+    if (has("context length", "maximum context", "too many tokens", "context window")) {
+        return {
+            problem: "The conversation became too long for this model.",
+            fix: "Type / → “Free up memory”, or “Start a new conversation”, then try again.",
+        };
+    }
+    if (has("fetch failed", "enotfound", "econnrefused", "econnreset", "network", "socket", "getaddrinfo", "unable to connect")) {
+        return {
+            problem: "Could not reach the AI service.",
+            fix: "Check your internet connection and send your message again.",
+        };
+    }
+    if (has("timeout", "timed out")) {
+        return {
+            problem: "The AI service took too long to answer.",
+            fix: "Send your message again. If it keeps happening, switch model with / → “Change AI model”.",
+        };
+    }
+    if (has("500", "502", "503", "overloaded", "internal server error", "bad gateway", "provider returned error")) {
+        return {
+            problem: "The AI service had a problem on its side.",
+            fix: "Send your message again in a moment, or switch model with / → “Change AI model”.",
+        };
+    }
+    return {
+        problem: "Something went wrong while talking to the AI.",
+        fix: "Send your message again. If it repeats, type / → “Change AI model”, or start a new conversation.",
+    };
 }
 
 export function errorText(error: unknown): string {

@@ -1,2 +1,9 @@
-export { getAgentModel, getModelId, getReasoningOverride } from "./ai.config";
-export type { ModelRole, ReasoningEffort } from "./ai.config";
+export {
+    applyUserSettings,
+    getAgentModel,
+    getModelId,
+    getReasoningOverride,
+    readUserSettings,
+    saveUserSettings,
+} from "./ai.config";
+export type { ModelRole, ReasoningEffort, UserSettings } from "./ai.config";
