@@ -137,7 +137,7 @@ executor.clearStaging()
 ```
 
 **What it does:**
-- It asks [approval.ts](approval.ts.md) whether to continue. If the answer is no, it throws away the staged changes and stops.
+- It hands the tracker to [approval.ts](approval.ts.md), which lets you approve all changes, review them one by one, or cancel. If nothing was approved (the answer is `false`), it throws away the staged changes and stops.
 - Otherwise `applyApprovedFromTracker()` writes or runs every action whose status is `approved`, and collects any error messages.
 - It shows the errors in red, or a green "✓ Applied."
 - Finally it clears the staging area.

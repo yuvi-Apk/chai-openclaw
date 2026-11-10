@@ -17,6 +17,7 @@ You already know this pattern from Git: `git add` stages changes, and `git commi
 - **An action log** (a list): every request is recorded with a `status`, such as `pending`, `approved`, `rejected`, or `executed`. Read-only actions (like reading a file) are logged as `executed` straight away, because they're harmless.
 - **An overlay** (a "scratch copy"): a `Map` of *path → new content* for files that are staged but not yet written. When the AI reads a file it has already "changed", it sees the staged version. That keeps the AI's view consistent within one run.
 - **A deleted set**: paths that are staged for deletion, so later reads act as if the file is already gone.
+- **An approval step**: asks the user "approve all, review one by one, or cancel?". In a one-by-one review, changes are grouped per file, and each group can show a [diff](unified-diffs.md) before you accept or reject it. Every action ends up marked `approved` or `rejected`.
 - **An apply step**: goes through the approved actions and does the real `mkdir`, `writeFile`, `rm`, or shell command.
 - **A clear step**: throws away the overlay when you're done.
 
@@ -26,4 +27,4 @@ If the AI edits the same file three times, only the **final** version matters. T
 
 💡 **Tip:** Path safety goes hand in hand with this pattern. Before touching any path, check that it stays *inside* the project folder, so `../../somewhere-else` can't sneak out.
 
-**Used in:** [files/modes/agent/tool-executor.ts.md](../files/modes/agent/tool-executor.ts.md), [files/modes/agent/action-tracker.ts.md](../files/modes/agent/action-tracker.ts.md), [files/modes/agent/approval.ts.md](../files/modes/agent/approval.ts.md)
+**Used in:** [files/modes/agent/tool-executor.ts.md](../files/modes/agent/tool-executor.ts.md), [files/modes/agent/action-tracker.ts.md](../files/modes/agent/action-tracker.ts.md), [files/modes/agent/approval.ts.md](../files/modes/agent/approval.ts.md), [files/modes/agent/diff-view.ts.md](../files/modes/agent/diff-view.ts.md)

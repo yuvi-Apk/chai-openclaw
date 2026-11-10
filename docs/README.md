@@ -9,7 +9,7 @@ Welcome! This folder is your **living textbook** for the project. Every doc here
 `yuvi` has one command, `wakeup`. It shows a big colourful **YUVI** banner, then asks how you want to talk to it:
 
 - **CLI mode** ✅: a menu in your terminal with **Agent**, **Plan**, **Chat**, **Help**, and **Exit**.
-  - **Agent** is an AI helper (through [OpenRouter](concepts/openrouter.md)) that can read your project, search it, and *propose* file changes or shell commands. Proposed changes are **staged** and only applied after approval.
+  - **Agent** is an AI helper (through [OpenRouter](concepts/openrouter.md)) that can read your project, search it, and *propose* file changes or shell commands. Proposed changes are **staged**. You then approve them all at once, or review them one by one with a [diff](concepts/unified-diffs.md) preview, and only the approved ones are applied.
   - **Chat** currently echoes your message back, and **Plan** is a placeholder.
 - **Telegram mode**: still "coming soon...".
 
@@ -43,7 +43,10 @@ You type:  yuvi wakeup
           read/list/search/analyze → run now, logged "executed"
           create/modify/delete/folder/shell → STAGED, logged "pending"
      4. print the answer as terminal Markdown (marked-terminal)
-     5. runApprovalFlow() → applyApprovedFromTracker() → clearStaging()
+     5. runApprovalFlow() (modes/agent/approval.ts)
+          "Approve and apply all" · "Review one by one" · "Cancel"
+          one by one → per file / shell command: Accept · Show diff · Reject
+     6. applyApprovedFromTracker() writes only the approved ones → clearStaging()
 ```
 
 ## How to run it
@@ -73,14 +76,15 @@ In menus, use the **arrow keys** and **Enter**. Press **Ctrl+C** or **Esc** to c
 - [files/modes/agent/agent-tools.ts.md](files/modes/agent/agent-tools.ts.md): the AI's toolbox. Each tool's description and Zod input schema.
 - [files/modes/agent/tool-executor.ts.md](files/modes/agent/tool-executor.ts.md): the real work behind each tool, plus safety guards, staging, and the apply step.
 - [files/modes/agent/action-tracker.ts.md](files/modes/agent/action-tracker.ts.md): the action log. Records everything the agent did or wants to do.
-- [files/modes/agent/approval.ts.md](files/modes/agent/approval.ts.md): the "are you sure?" step (a starter stub for now).
+- [files/modes/agent/approval.ts.md](files/modes/agent/approval.ts.md): the "are you sure?" step. Approve all, review one by one with diffs, or cancel.
+- [files/modes/agent/diff-view.ts.md](files/modes/agent/diff-view.ts.md): helpers that turn staged file actions into one before/after diff per file.
 - [files/modes/agent/types.ts.md](files/modes/agent/types.ts.md): shared types (`ActionLog`, `AgentConfig`) and the default agent config.
 - [files/ai/ai.config.ts.md](files/ai/ai.config.ts.md): picks the AI model through OpenRouter, using environment variables.
 - [files/ai/index.ts.md](files/ai/index.ts.md): barrel file that re-exports `getAgentModel`.
 - [files/package.json.md](files/package.json.md): project identity card: name, `bin`, scripts, and dependencies.
 - [files/tsconfig.json.md](files/tsconfig.json.md): tells TypeScript how strict to be and which features to allow.
 - [files/cspell.json.md](files/cspell.json.md): spell-checker settings and the project's custom word list.
-- [files/README.md.md](files/README.md.md): the short root README created by `bun init`.
+- [files/README.md.md](files/README.md.md): the root README. The project's front page with features, quick start, tools, and configuration.
 - [files/.gitignore.md](files/.gitignore.md): files Git should never track (like `node_modules` and `.env`).
 - [files/.prettierrc.md](files/.prettierrc.md): Prettier formatting rules (quotes, semicolons, indent).
 - [files/.prettierignore.md](files/.prettierignore.md): files Prettier should skip.
@@ -105,6 +109,7 @@ In menus, use the **arrow keys** and **Enter**. Press **Ctrl+C** or **Esc** to c
 - [concepts/openrouter.md](concepts/openrouter.md): one API key for many AI models.
 - [concepts/environment-variables.md](concepts/environment-variables.md): `process.env`, `.env` files, and keeping secrets out of code.
 - [concepts/staged-changes-and-approval.md](concepts/staged-changes-and-approval.md): the stage → approve → apply safety pattern for AI agents.
+- [concepts/unified-diffs.md](concepts/unified-diffs.md): reading `+`/`-` diffs and making them with the `diff` package.
 - [concepts/node-fs-path.md](concepts/node-fs-path.md): files, paths, path-traversal guards, and running shell commands.
 - [concepts/cspell.md](concepts/cspell.md): spell-checking code with CSpell.
 - [concepts/prettier.md](concepts/prettier.md): automatic code formatting.

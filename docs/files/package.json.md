@@ -72,6 +72,7 @@
   "ai": "^7.0.166",
   "chalk": "^6.0.1",
   "commander": "^15.1.0",
+  "diff": "^9.0.0",
   "figlet": "^1.12.0",
   "marked": "^18.2.0",
   "marked-terminal": "^8.0.0",
@@ -90,12 +91,13 @@
   - `ai`: the AI SDK. It provides tools, models, and the `ToolLoopAgent` that runs agent mode ([concepts/ai-sdk-agents.md](../concepts/ai-sdk-agents.md)).
   - `@openrouter/ai-sdk-provider`: connects the AI SDK to [OpenRouter](../concepts/openrouter.md), the service that supplies the AI model.
   - `marked` + `marked-terminal`: turn the AI's Markdown replies into coloured terminal text ([concepts/marked-terminal.md](../concepts/marked-terminal.md)).
+  - `diff`: compares two texts and produces a `git diff`-style patch, used to preview the agent's changes ([concepts/unified-diffs.md](../concepts/unified-diffs.md)).
   - `@types/node`: type info for Node-style APIs like `process.argv`, `fs`, and `path`.
   - `prettier`: the code formatter ([concepts/prettier.md](../concepts/prettier.md)).
 
 **Why it's used in general:** Listing dependencies with version ranges lets anyone run `bun install` and get compatible versions.
 
-**Why it's used here:** `commander` runs the CLI in [index.ts](index.ts.md). `figlet`, `chalk`, and `@clack/prompts` together build the wakeup screen in [terminal-ui/wakeup.ts](terminal-ui/wakeup.ts.md) and the menus in [modes/cli.ts](modes/cli.ts.md). `ai` and `@openrouter/ai-sdk-provider` power agent mode in [modes/agent/orchestrator.ts](modes/agent/orchestrator.ts.md), and `marked` + `marked-terminal` print its answers in [terminal-ui/terminal-md.ts](terminal-ui/terminal-md.ts.md).
+**Why it's used here:** `commander` runs the CLI in [index.ts](index.ts.md). `figlet`, `chalk`, and `@clack/prompts` together build the wakeup screen in [terminal-ui/wakeup.ts](terminal-ui/wakeup.ts.md) and the menus in [modes/cli.ts](modes/cli.ts.md). `ai` and `@openrouter/ai-sdk-provider` power agent mode in [modes/agent/orchestrator.ts](modes/agent/orchestrator.ts.md), and `marked` + `marked-terminal` print its answers in [terminal-ui/terminal-md.ts](terminal-ui/terminal-md.ts.md). `diff` builds the change previews in [modes/agent/diff-view.ts](modes/agent/diff-view.ts.md), shown during approval.
 
 💡 **Tip:** `^1.8.1` means "1.8.1 or any newer **1.x** version", but never 2.0. The `^` allows safe minor updates.
 

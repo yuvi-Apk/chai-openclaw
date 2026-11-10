@@ -53,4 +53,4 @@ log.message("A reply");     // a plain message line
 - **`validate`**: runs on every submit. Return a string to show an error and ask again. Return `undefined` to accept the answer.
 - **`log.*`**: prints lines that match clack's style, so your own output looks like part of the same conversation.
 
-**Used in:** [files/terminal-ui/wakeup.ts.md](../files/terminal-ui/wakeup.ts.md), [files/modes/cli.ts.md](../files/modes/cli.ts.md), [files/modes/agent/orchestrator.ts.md](../files/modes/agent/orchestrator.ts.md)
+**Used in:** [files/terminal-ui/wakeup.ts.md](../files/terminal-ui/wakeup.ts.md), [files/modes/cli.ts.md](../files/modes/cli.ts.md), [files/modes/agent/orchestrator.ts.md](../files/modes/agent/orchestrator.ts.md), [files/modes/agent/approval.ts.md](../files/modes/agent/approval.ts.md)

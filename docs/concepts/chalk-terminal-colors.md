@@ -22,4 +22,4 @@ Colour helps users scan output: green for success, red for errors, grey for hint
 
 💡 **Tip:** Chalk v5 and newer is **ESM-only**, so you must use `import`, not `require`. That's fine here because the project uses [ES modules](es-modules.md). Chalk also turns colours off automatically when output isn't a real terminal, for example when it's piped to a file.
 
-**Used in:** [files/terminal-ui/wakeup.ts.md](../files/terminal-ui/wakeup.ts.md)
+**Used in:** [files/terminal-ui/wakeup.ts.md](../files/terminal-ui/wakeup.ts.md), [files/modes/agent/approval.ts.md](../files/modes/agent/approval.ts.md)
