@@ -88,9 +88,16 @@ In menus, use the **arrow keys** and **Enter**. Press **Ctrl+C** or **Esc** to c
 - [files/tsconfig.json.md](files/tsconfig.json.md): tells TypeScript how strict to be and which features to allow.
 - [files/cspell.json.md](files/cspell.json.md): spell-checker settings and the project's custom word list.
 - [files/README.md.md](files/README.md.md): the root README. The project's front page with features, quick start, tools, and configuration.
+- [files/CLAUDE.md.md](files/CLAUDE.md.md): the briefing for AI coding assistants. Commands, folder map, the ten architecture rules, and the workflow.
 - [files/.gitignore.md](files/.gitignore.md): files Git should never track (like `node_modules` and `.env`).
 - [files/.prettierrc.md](files/.prettierrc.md): Prettier formatting rules (quotes, semicolons, indent).
 - [files/.prettierignore.md](files/.prettierignore.md): files Prettier should skip.
+
+### Project guides
+- [ARCHITECTURE.md](ARCHITECTURE.md): the big-picture overview and how a message flows through the layers.
+- [adding-a-mode.md](adding-a-mode.md): a worked example of adding a new mode, with code.
+- [decisions.md](decisions.md): the log of architecture decisions and why they were made.
+- [progress.md](progress.md): current status and next steps.
 
 ### Concepts (reusable ideas)
 - [concepts/bun-runtime.md](concepts/bun-runtime.md): what Bun is and why it runs TypeScript directly.

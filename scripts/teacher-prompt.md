@@ -47,6 +47,7 @@ You are given the staged diff. Update the docs so they match the code AFTER this
   scripts/teacher-prompt.md, .githooks/, .claude/ (that's the Code Buddy tooling itself).
 - Read the full source files when needed (not just the diff) so explanations are accurate.
 - Only create/edit/delete files inside docs/. Use relative markdown links between docs.
+- Never edit or delete docs/ARCHITECTURE.md, docs/adding-a-mode.md, docs/decisions.md or docs/progress.md; link to them from the README map.
 - Style: friendly teacher, simple English, short paragraphs, analogies welcome.
 
 When finished, reply with one short line summarizing which docs you created/updated/removed.
