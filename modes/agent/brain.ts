@@ -52,7 +52,7 @@ export interface BrainContext {
 
 // ---------- triage ----------
 
-function triageByKeywords(text: string): TaskKind {
+export function triageByKeywords(text: string): TaskKind {
     const t = text.toLowerCase();
     if (/\b(refactor|restructure|reorgani[sz]e|migrate|rename .* (across|everywhere))\b/.test(t))
         return "refactor";

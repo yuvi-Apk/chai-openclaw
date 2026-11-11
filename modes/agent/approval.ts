@@ -12,7 +12,7 @@ interface ReviewGroup {
     patch: string | null;
 }
 
-function groupPending(pending: ActionLog[]): ReviewGroup[] {
+export function groupPending(pending: ActionLog[]): ReviewGroup[] {
     const byPath = new Map<string, ActionLog[]>();
     const shells: ActionLog[] = [];
 
@@ -185,7 +185,7 @@ export function isReadOnlyCommand(session: AgentSession, command: string): boole
 }
 
 /** The first one or two words of a command, e.g. "bun add" or "mkdir". */
-function commandPrefix(command: string): string {
+export function commandPrefix(command: string): string {
     const words = command.trim().split(/\s+/);
     const second = words[1];
     if (second && /^[a-z][\w:-]*$/i.test(second)) return `${words[0]} ${second}`;

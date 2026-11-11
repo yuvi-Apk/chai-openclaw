@@ -35,14 +35,14 @@ const PROMPT = "› ";
 const MAX_SUGGESTIONS = 8;
 
 /** The "@query" being typed at the end of the line, or null when there is none. */
-function mentionAtEnd(buffer: string): { start: number; query: string } | null {
+export function mentionAtEnd(buffer: string): { start: number; query: string } | null {
     const m = /(?:^|\s)@([^\s@]*)$/.exec(buffer);
     if (!m) return null;
     return { start: buffer.length - m[1]!.length, query: m[1]! };
 }
 
 /** Files and folders matching a query, best first. Folders end with "/". */
-function rankPaths(paths: string[], query: string): string[] {
+export function rankPaths(paths: string[], query: string): string[] {
     const q = query.toLowerCase().replace(/\\/g, "/");
     if (!q) {
         // Nothing typed yet: shallow paths first, so the list starts at the top level.
