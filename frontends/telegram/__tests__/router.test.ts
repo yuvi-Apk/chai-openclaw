@@ -43,13 +43,14 @@ beforeEach(() => {
 });
 afterEach(() => ws.cleanup());
 
-function setup(steps: StreamPart[][] = [], projects: TelegramConfig["projects"] = []) {
+function setup(steps: StreamPart[][] = [], projects: TelegramConfig["projects"] = [], env: Record<string, string> = {}) {
     let call = 0;
     const model = new MockLanguageModelV4({
         doStream: async () => ({ stream: convertArrayToReadableStream((steps[call++] ?? say("(script ended)")) as never) }),
     });
     const settings = new Settings(
-        { ...process.env, YUVI_DEV: "1", YUVI_TRIAGE: "off", YUVI_SELF_REVIEW: "off", YUVI_LOG: "", OPENROUTER_API_KEY: FAKE_API_KEY },
+        // YUVI_LLM is fixed so a provider chosen in the developer's .env cannot leak in.
+        { ...process.env, YUVI_LLM: "openrouter", YUVI_DEV: "1", YUVI_TRIAGE: "off", YUVI_SELF_REVIEW: "off", YUVI_LOG: "", OPENROUTER_API_KEY: FAKE_API_KEY, ...env },
         null,
     );
     const core = createCore(settings, { llmProviders: { openrouter: () => () => model } });
@@ -65,7 +66,7 @@ function setup(steps: StreamPart[][] = [], projects: TelegramConfig["projects"] 
         await send(`/unlock ${PIN}`);
         await send(`/open ${mode}`);
     };
-    return { api, router, model, send, press, open };
+    return { api, router, model, send, press, open, settings };
 }
 
 describe("who gets in", () => {
@@ -375,5 +376,86 @@ describe("files and projects", () => {
         await send(`/unlock ${PIN}`);
         await send("/project");
         expect(api.last()!.text).toContain("YUVI_TELEGRAM_PROJECTS");
+    });
+});
+
+describe("provider, model and effort menus", () => {
+    // Keys are set here, never taken from the developer's .env.
+    // No YUVI_LLM: the provider comes from the default, as when .env does not name one.
+    const keys = { ANTHROPIC_API_KEY: "sk-ant-key-123456", OPENAI_API_KEY: "", GEMINI_API_KEY: "", YUVI_REASONING: "", YUVI_LLM: "", YUVI_CHAT_LLM: "" };
+    const unlocked = async (env: Record<string, string> = keys) => {
+        const chat = setup([], [], env);
+        await chat.send(`/unlock ${PIN}`);
+        return chat;
+    };
+
+    test("/provider switches to a provider that has a key", async () => {
+        const { api, send, press, settings } = await unlocked();
+        const switching = send("/provider");
+        await press("Claude");
+        await switching;
+        expect(settings.llmProvider).toBe("anthropic");
+        expect(api.last()!.text).toBe("✓ Now using <b>Claude</b> with <code>claude-sonnet-5-5</code>, saved.");
+    });
+
+    test("/provider refuses a provider without a key and never asks for one", async () => {
+        const { api, send, press, settings } = await unlocked();
+        const switching = send("/provider");
+        await until(() => api.button("OpenAI · no key yet"), "the OpenAI button");
+        await press("OpenAI");
+        await switching;
+        expect(settings.llmProvider).toBe("openrouter");
+        expect(api.last()!.text).toContain("OpenAI has no key yet, so nothing was changed.");
+    });
+
+    test("/provider warns when .env names the provider", async () => {
+        const { api, send, press } = await unlocked({ ...keys, YUVI_LLM: "openrouter" });
+        const switching = send("/provider");
+        await press("Claude");
+        await switching;
+        expect(api.last()!.text).toContain("wins when the bot restarts");
+    });
+
+    test("/model offers buttons and also takes a typed id", async () => {
+        const { api, send, press, settings } = await unlocked({ ...keys, YUVI_LLM: "anthropic" });
+        const picking = send("/model");
+        await press("claude-opus-5-5");
+        await picking;
+        expect(settings.modelId("main")).toBe("claude-opus-5-5");
+
+        const typing = send("/model");
+        // Wait for the new menu, so the press does not hit the used one.
+        await until(() => api.transcript().includes("Now: claude-opus-5-5"), "the second model menu");
+        await press("Other…");
+        await until(() => api.transcript().includes("Send the model id"), "the model id question");
+        await send("claude-custom-1");
+        await typing;
+        expect(settings.modelId("main")).toBe("claude-custom-1");
+    });
+
+    test("/model refuses a typed id that is not a model id", async () => {
+        const { api, send, press, settings } = await unlocked();
+        const typing = send("/model");
+        await press("Other…");
+        await until(() => api.transcript().includes("Send the model id"), "the model id question");
+        await send("rm -rf everything please");
+        await typing;
+        expect(settings.modelId("main")).toBe("openrouter/free");
+        expect(api.last()!.text).toContain("does not look like a model id");
+    });
+
+    test("/effort saves the effort, and default clears it", async () => {
+        const { api, send, press, settings } = await unlocked();
+        const setting = send("/effort");
+        await press("high");
+        await setting;
+        expect(settings.reasoning).toBe("high");
+        expect(api.last()!.text).toBe("✓ Effort set to <b>high</b>, saved.");
+
+        const clearing = send("/effort");
+        await until(() => api.transcript().includes("Now: high"), "the second effort menu");
+        await press("default");
+        await clearing;
+        expect(settings.reasoning).toBeUndefined();
     });
 });

@@ -46,7 +46,8 @@ export class TerminalRenderer {
     onAbort: (() => void) | undefined;
 
     /** @param provider names the model provider in error advice */
-    constructor(private readonly provider?: LLMProviderProfile) {}
+    /** @param provider the provider in use, read when an error is explained (it can change mid-session) */
+    constructor(private readonly provider: () => LLMProviderProfile | undefined = () => undefined) {}
 
     // ---------- low-level drawing ----------
 
@@ -318,7 +319,7 @@ export class TerminalRenderer {
 
     /** Show an error in plain words, with what the user can do about it. */
     private errorBox(raw: string, hint?: string): void {
-        const { problem, fix } = explainError(raw, this.provider);
+        const { problem, fix } = explainError(raw, this.provider());
         const lines = ["", chalk.red.bold(`✗ ${problem}`), `  ${chalk.bold("What to do:")} ${fix}`];
         const detail = raw.replace(/\s+/g, " ").trim();
         if (detail && detail !== problem) {

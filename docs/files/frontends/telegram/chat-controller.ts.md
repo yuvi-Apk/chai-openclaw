@@ -2,41 +2,31 @@
 
 **Purpose:** Manages **one Telegram chat**: which mode is open, the session with it, and the turn that is running. It knows the `Mode` contract and nothing about any particular mode.
 
-**Where it fits:** It uses [host.ts](host.ts.md) for the mode's host and a messenger to send replies. Settings come from [core/config.ts](../../core/config.ts.md) through `deps.core`.
+**Where it fits:** It uses [host.ts](host.ts.md) for the mode's host and a messenger to send replies. Settings come from [core/config.ts](../../core/config.ts.md) through `deps.core`. The commands in [commands.ts](commands.ts.md) call its methods; the model menus live in [model-settings.ts](model-settings.ts.md).
 
 > This doc covers the parts that use the model provider. More sections will be added as the file changes.
 
 ---
 
-### `changeModel()`: the `/model` command
+### `modelMenu`: what the model menus need
 
 ```ts
-async changeModel(): Promise<void> {
-    const { settings } = this.deps.core;
-    await this.messenger.send(
-        `Current model: <code>${escapeHtml(settings.modelId("main"))}</code>\nSend the new model id (from ${escapeHtml(settings.llmProfile.modelsUrl)}), or /cancel.`,
-    );
-    const id = (await this.deps.questions.text(this.deps.chatId))?.trim();
-    if (!id) return;
-    if (!MODEL_ID.test(id)) return void (await this.messenger.send("✗ That does not look like a model id. Nothing was changed."));
-    settings.saveModel(id);
-    await this.messenger.send(`✓ Model changed to <code>${escapeHtml(settings.modelId("main"))}</code> and saved.`);
+/** What /provider, /model and /effort need (model-settings.ts). */
+get modelMenu(): ModelMenuContext {
+    const { chatId, core, questions } = this.deps;
+    return { chatId, settings: core.settings, messenger: this.messenger, questions, log: core.log };
 }
 ```
 
-**What it does:**
-1. Shows the current model and links to the active provider's model list.
-2. Waits for your reply. `?.trim()` only trims if a reply came back (`?.` is **optional chaining**).
-3. Checks the reply looks like a model id (the `MODEL_ID` regular expression). If not, nothing changes.
-4. Saves it with `saveModel`, which writes to the active provider's field, and confirms.
+**What it does:** A **getter** that packs up exactly the five things the menus need: which chat, the settings, the messenger (to send messages), the questions helper (to wait for a button press or a reply), and the logger. `{ chatId, core, questions } = this.deps` is **destructuring**: it pulls three fields out of `deps` into local names.
 
-**Why it's used in general:** Text from a chat is untrusted input, so it is checked before use. `escapeHtml` stops it from breaking the HTML message.
+**Why it's used in general:** Giving a helper a small "context" object, instead of the whole controller, is the **I** in SOLID (small interfaces): the helper can only touch what it was given.
 
-**Why it's used here:** The link and the saved field both follow `YUVI_LLM`. So OpenAI users are sent to OpenAI's model page, and their choice doesn't overwrite the OpenRouter model.
+**Why it's used here:** The controller was getting too big. Moving `/provider`, `/model` and `/effort` into [model-settings.ts](model-settings.ts.md) keeps this file focused on mode, session and turn. The controller only has to hand over the context.
 
 ---
 
 ### 🧠 Key takeaways
 - One `ChatController` per chat; it only knows the `Mode` contract.
-- `/model` checks the reply before saving it.
-- The model is saved for the provider in use, with a link to that provider's model list.
+- The model menus are not in this file; it just provides `modelMenu`.
+- A small context object keeps the menu code from depending on the whole controller.

@@ -60,20 +60,20 @@ yuvi (CLI entry)
 bun install
 
 # .env file in the project root
-YUVI_LLM=openrouter                         # or openai
+# YUVI_LLM=openrouter                       # optional: openrouter, openai, gemini or anthropic
 OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxx
-OPENROUTER_DEFAULT_MODEL=openrouter/auto
 OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxx
-OPENAI_DEFAULT_MODEL=gpt-5-mini
+GEMINI_API_KEY=xxxxxxxxxxxxx
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxx
 
 bun run index.ts
 ```
 
 **What it does:**
-- **Prerequisites:** [Bun](../concepts/bun-runtime.md) and an API key from *either* [OpenRouter](../concepts/openrouter.md) (has free models) or OpenAI (prepaid credit).
+- **Prerequisites:** [Bun](../concepts/bun-runtime.md) and an API key from *any one* provider: [OpenRouter](../concepts/openrouter.md) (has free models), OpenAI (prepaid credit), Gemini (has a free tier) or Claude (prepaid credit).
 - **Install:** clone the repo, then `bun install` downloads everything listed in [package.json](package.json.md).
-- **Configure:** put your settings in a `.env` file. Bun loads it automatically. See [environment-variables.md](../concepts/environment-variables.md). `YUVI_LLM` picks the provider. You may set both keys; each provider keeps its own model setting ([provider-profiles.md](../concepts/provider-profiles.md)).
-- **A note on cost:** with OpenAI the cost line shows $0, because OpenAI doesn't report a price per call. You check your spending on OpenAI's usage page instead.
+- **Configure:** put your keys in a `.env` file. Bun loads it automatically. See [environment-variables.md](../concepts/environment-variables.md). Set as many keys as you like, then **switch in the app**: in the terminal type `/` and choose "Switch AI provider", "Change AI model" or "Change thinking effort"; in Telegram send `/provider`, `/model` or `/effort`. The choice is saved in `~/.yuvi/settings.json` ([user-settings-file.md](../concepts/user-settings-file.md)). A value in `.env` (`YUVI_LLM`, a model variable, `YUVI_REASONING`) wins at the next start, so leave those out if you want to pick in the app ([provider-profiles.md](../concepts/provider-profiles.md)).
+- **A note on cost:** with OpenAI, Gemini and Claude the cost line shows $0, because they don't report a price per call. You check your spending on the provider's usage page instead.
 - **Run:** `bun run index.ts` runs the entry file, [index.ts](index.ts.md). After `bun link`, the `yuvi` command works too ([package-json-bin.md](../concepts/package-json-bin.md)).
 
 **Why it's used in general:** "Prerequisites → Install → Configure → Run" is the standard quick-start order. A newcomer can copy-paste from top to bottom.
@@ -125,15 +125,16 @@ bun run index.ts
 ```md
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `YUVI_LLM` | ❌ | `openrouter` | Model provider: `openrouter` or `openai` |
+| `YUVI_LLM` | ❌ | `openrouter`, or the one picked in the app | `openrouter`, `openai`, `gemini` or `anthropic` |
 | `OPENROUTER_API_KEY` | with OpenRouter | — | Your OpenRouter API key |
-| `OPENROUTER_DEFAULT_MODEL` | ❌ | `openrouter/free` | Model identifier |
 | `OPENAI_API_KEY` | with OpenAI | — | Your OpenAI API key |
-| `OPENAI_DEFAULT_MODEL` | ❌ | `gpt-5-mini` | Model identifier |
-| `OPENAI_FAST_MODEL` | ❌ | main model | Cheap OpenAI model for triage, routing and summaries |
+| `GEMINI_API_KEY` | with Gemini | — | Your Google AI Studio key |
+| `ANTHROPIC_API_KEY` | with Claude | — | Your Claude API key |
+| `ANTHROPIC_FAST_MODEL` | ❌ | `claude-haiku-5-5` | Cheap Claude model for triage, routing and summaries |
+| `YUVI_REASONING` | ❌ | per task, or the one picked in the app | Thinking effort (`low` … `max`), or `off` |
 ```
 
-**What it does:** One table lists the environment variables. The "Required" column says "with OpenRouter" or "with OpenAI", because you only need the key for the provider you picked. Below it, the README shows `defaultAgentConfig()`: the workspace root, the 1 MB read limit, the excluded patterns, and the on/off switches for each kind of tool.
+**What it does:** One table lists the environment variables. Each provider has a key, a `..._DEFAULT_MODEL` and a `..._FAST_MODEL` row. The "Required" column says "with OpenRouter", "with Gemini" and so on, because you only need the key for the provider you use. The Default column says "or the one picked in the app" where a menu choice can stand in for the variable. Below it, the README shows `defaultAgentConfig()`: the workspace root, the 1 MB read limit, the excluded patterns, and the on/off switches for each kind of tool.
 
 **Why it's used in general:** A config reference table saves people from hunting through source code to find what they can change.
 
@@ -164,5 +165,5 @@ bunx prettier --write .  # format
 ### 🧠 Key takeaways
 - The README is the project's front page: pitch, features, quick start, and reference tables.
 - Its main message is **approval-first**: the agent stages changes, and you decide.
-- Setup needs three things: Bun, `bun install`, and an OpenRouter or OpenAI key in `.env` (`YUVI_LLM` picks which).
+- Setup needs three things: Bun, `bun install`, and a key from OpenRouter, OpenAI, Gemini or Claude; you switch between them in the app.
 - The root README is the overview. The `docs/` folder holds the deeper, file-by-file explanations.

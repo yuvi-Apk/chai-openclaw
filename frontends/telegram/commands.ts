@@ -3,6 +3,7 @@
  * entry in this list; the controller does the work.
  */
 import type { ChatController } from "./chat-controller";
+import { changeEffort, changeModel, changeProvider } from "./model-settings";
 
 export interface FrontCommand {
     /** With the slash: "/stop". */
@@ -24,7 +25,9 @@ export const FRONT_COMMANDS: FrontCommand[] = [
     { name: "/cancel", description: "cancel a question", whileRunning: true, hidden: true, run: (chat) => chat.cancelQuestions() },
     { name: "/cycle", description: "switch to the next sub-mode", run: (chat) => chat.cycle() },
     { name: "/thinking", description: "show or hide the thinking: /thinking on|off", whileRunning: true, run: (chat, arg) => chat.setThinking(arg) },
-    { name: "/model", description: "change the AI model", run: (chat) => chat.changeModel() },
+    { name: "/provider", description: "switch AI provider: OpenRouter, OpenAI, Gemini, Claude", run: (chat) => changeProvider(chat.modelMenu) },
+    { name: "/model", description: "change the AI model", run: (chat) => changeModel(chat.modelMenu) },
+    { name: "/effort", description: "how hard the model thinks", run: (chat) => changeEffort(chat.modelMenu) },
     { name: "/project", description: "switch project folder", run: (chat) => chat.chooseProject() },
     { name: "/file", description: "get a project file: /file <path>", whileRunning: true, run: (chat, arg) => chat.sendFile(arg) },
     { name: "/key", description: "why keys are not set here", hidden: true, run: (chat) => chat.refuseKey() },

@@ -8,25 +8,25 @@ _Last updated: 2026-11-11_
 ## Status
 
 - Layers `core/` → `modes/` → `frontends/{terminal,telegram}/` in place.
-  270 tests pass, tsc clean.
-- Telegram front end built (`yuvi telegram`), not yet committed and **not yet
-  tried against the real Telegram service** (tests use a fake Bot API).
+  310 tests pass, tsc clean.
+- Telegram front end built (`yuvi telegram`), **not yet tried against the
+  real Telegram service** (tests use a fake Bot API).
 
 ## Just built
 
-- OpenAI as a second model provider (`YUVI_LLM=openai`, `OPENAI_API_KEY`,
-  `OPENAI_DEFAULT_MODEL`, `OPENAI_FAST_MODEL`), `core/llm/profiles.ts`,
-  provider-aware key prompt and error advice. Decision D21. Not yet tried
-  with a real OpenAI key. 281 tests pass, tsc clean.
-
-- `frontends/telegram/` (polling, PIN lock, approvals, files, photos) and its
-  core support (`HandleOptions.images`, `path-safety.ts`). Decisions D15–D20.
+- Four model providers: OpenRouter, OpenAI, Gemini (`GEMINI_*`), Claude
+  (`ANTHROPIC_*`). Decisions D21–D22. None of the new ones tried with a real key.
+- Switch provider / model / effort from the menus, mid-session: terminal `/`
+  menu, Telegram `/provider`, `/model`, `/effort` (D23). `core/llm/choices.ts`.
 
 ## Next
 
-- User: copy the new variables into `.env`, set `YUVI_LLM=openai`, try a Chat
-  question and an Agent change. Maybe a `/` menu item to switch provider.
-- OpenAI cost shows $0: add a price table if an estimate is wanted.
+- User: add the Gemini/Claude keys to `.env` (or paste them via the menu),
+  remove `YUVI_LLM` from `.env` so the menu choice sticks, try each provider
+  with a Chat question and an Agent change.
+- Check `reasoning: "low"` works on Gemini and Claude; else `YUVI_REASONING=off`.
+- Cost shows $0 except on OpenRouter: add a price table if an estimate is wanted.
+- `classifyError` is 44 lines: turn the phrase lists into a table.
 
 - User's manual check of the bot (README "Telegram"): unlock, Chat, an Agent
   change with Approve/Reject, `/stop`, a photo, a file upload, `/file`.
@@ -37,7 +37,7 @@ _Last updated: 2026-11-11_
 
 ## Known issues
 
-- Telegram: `frontends/telegram/chat-controller.ts` is 322 lines (aim is 300).
+- Telegram: `frontends/telegram/chat-controller.ts` is 316 lines (aim is 300).
 - Telegram: there is no "Run checks" quick button; the agent has no such command.
 - Agent: a correction typed during an approval is dropped when the turn ends
   right after a rejection (Telegram works around it, the terminal does not).

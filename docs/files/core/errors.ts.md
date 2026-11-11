@@ -52,24 +52,38 @@ export function errorText(error: unknown): string {
 ### `classifyError()`: what went wrong?
 
 ```ts
-if (has("invalid api key", "incorrect api key", "unauthorized", "user not found")) return "auth_rejected";
+if (
+    has("invalid api key", "incorrect api key", "unauthorized", "user not found") ||
+    // Anthropic, then Gemini.
+    has("invalid x-api-key", "api key not valid", "api_key_invalid", "api key expired")
+) {
+    return "auth_rejected";
+}
 // OpenAI reports an empty balance as a 429, so this must come before rate limits.
-if (has("402", "insufficient credits", "payment required", "more credits",
-        "exceeded your current quota", "insufficient_quota")) {
+if (
+    has("402", "insufficient credits", "payment required", "more credits", "exceeded your current quota", "insufficient_quota") ||
+    has("credit balance is too low")
+) {
     return "no_credits";
 }
-if (has("429", "rate limit", "rate-limit", "too many requests")) return "rate_limited";
-// ...
-if (has("not a valid model", "model not found", "no such model",
-        "does not exist or you do not have access", "404")) return "model_not_found";
+if (has("429", "rate limit", "rate-limit", "too many requests", "resource_exhausted", "resource has been exhausted")) {
+    return "rate_limited";
+}
 ```
 
 **What it does:** It lower-cases the raw message and looks for known phrases. `has(...)` is true if *any* of the words appear. The result is one `ErrorKind`, a [union type](../../concepts/typescript-union-types.md) like `"auth_missing"`, `"no_credits"`, `"rate_limited"`, `"model_not_found"`, `"network"` or `"unknown"`.
 
-It knows both providers' wording:
-- OpenRouter says "invalid api key" or "402"; OpenAI says "Incorrect API key provided".
-- OpenAI says "You exceeded your current quota" / `insufficient_quota` when your balance is empty.
-- OpenAI says a model "does not exist or you do not have access to it".
+It knows the wording of all four providers:
+
+| Kind | OpenRouter / OpenAI | Claude (Anthropic) | Gemini |
+|---|---|---|---|
+| key rejected | "invalid api key", "Incorrect API key provided" | "invalid x-api-key" | "API key not valid", "API key expired" |
+| no credits | "402", "insufficient_quota" | "credit balance is too low" | — |
+| rate limited | "429", "too many requests" | "429" | "RESOURCE_EXHAUSTED" |
+| model not found | "does not exist or you do not have access" | — | "is not found for API version" |
+| provider down | "500", "503", "overloaded" | "529 overloaded_error" | "503" |
+
+When a check grows, a second `has(...)` is joined with `||` and a short comment says which provider it is for. That keeps each list readable.
 
 **Why it's used in general:** Providers send long technical messages. Sorting them into a few buckets lets you show a short, helpful message.
 
@@ -82,6 +96,6 @@ It knows both providers' wording:
 ### 🧠 Key takeaways
 - All app errors extend `YuviError`; `new.target.name` names them for free.
 - `errorText` turns any thrown value into text.
-- `classifyError` sorts raw messages from OpenRouter *and* OpenAI into a few kinds.
+- `classifyError` sorts raw messages from OpenRouter, OpenAI, Claude and Gemini into a few kinds.
 - "No credits" is checked before "rate limited" because OpenAI uses 429 for both.
 - The core classifies; the front ends choose the words.

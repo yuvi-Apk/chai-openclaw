@@ -70,7 +70,8 @@ No server or public address is needed.
 | a file | Saved into the project after you confirm (`uploads/`, or the folder named in the caption) |
 | `/file <path>` | Sends a project file to you |
 | `/project` | Switch between folders listed in `YUVI_TELEGRAM_PROJECTS` |
-| `/thinking on\|off`, `/model`, `/help` | Display and model settings |
+| `/provider`, `/model`, `/effort` | Switch AI provider, model or thinking effort with buttons (keys are set on your PC only) |
+| `/thinking on\|off`, `/help` | Display settings and help |
 | `/lock`, `/unlock` | Lock now; unlock with your PIN |
 
 Safety: only the listed user ids are served, in private chats. The bot starts
@@ -86,9 +87,11 @@ are not end-to-end encrypted, so do not paste secrets into them.
 ### Prerequisites
 
 - **Bun** ≥ 1.0 (the runtime & package manager)
-- **An API key** from either provider:
-  - **OpenRouter** — get one at [openrouter.ai](https://openrouter.ai/keys) (has free models), or
+- **An API key** from any one provider:
+  - **OpenRouter** — get one at [openrouter.ai](https://openrouter.ai/keys) (has free models)
   - **OpenAI** — get one at [platform.openai.com](https://platform.openai.com/api-keys) (prepaid credit)
+  - **Gemini** — get one at [aistudio.google.com](https://aistudio.google.com/apikey) (has a free tier)
+  - **Claude** — get one at [platform.claude.com](https://platform.claude.com/settings/keys) (prepaid credit)
 
 ### Install
 
@@ -106,8 +109,9 @@ bun install
 Create a `.env` file in the project root:
 
 ```bash
-# Which provider to use: openrouter (default) or openai
-YUVI_LLM=openrouter
+# Optional: which provider to use: openrouter (default), openai, gemini or anthropic.
+# Leave it out to pick the provider in the app (type / and choose "Switch AI provider").
+# YUVI_LLM=openrouter
 
 # OpenRouter: key, and optionally the model (default: openrouter/free)
 # See https://openrouter.ai/models for available models
@@ -118,12 +122,23 @@ OPENROUTER_DEFAULT_MODEL=openrouter/auto
 # See https://platform.openai.com/docs/models for available models
 OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxx
 OPENAI_DEFAULT_MODEL=gpt-5-mini
+
+# Gemini (Google AI Studio): key, and optionally the model (default: gemini-3.8-flash)
+GEMINI_API_KEY=xxxxxxxxxxxxx
+
+# Claude (Anthropic): key, and optionally the models
+# (defaults: claude-sonnet-5-5, and claude-haiku-5-5 for quick tasks)
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxx
 ```
 
-Both keys can be set at once; `YUVI_LLM` picks which one is used. Each
-provider keeps its own model setting. With OpenAI the cost line shows $0,
-because OpenAI does not report a price per call; check your spending on the
-OpenAI usage page.
+Any number of keys can be set at once. Switch between them in the app: in
+the terminal type `/` and choose **Switch AI provider**, **Change AI model**
+or **Change thinking effort**; in Telegram send `/provider`, `/model` or
+`/effort`. The choice is saved in `~/.yuvi/settings.json`. A value in `.env`
+(`YUVI_LLM`, a model variable, `YUVI_REASONING`) wins at the next start, so
+leave those out if you want to pick in the app. Each provider keeps its own
+model setting. With OpenAI, Gemini and Claude the cost line shows $0, because
+they do not report a price per call; check spending on the provider's usage page.
 
 > **Tip:** You can also export these in your shell profile (`.bashrc`, `.zshrc`, etc.) instead of using `.env`.
 
@@ -212,13 +227,20 @@ Hello from yuvi!
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `YUVI_LLM` | ❌ | `openrouter` | Model provider: `openrouter` or `openai` |
+| `YUVI_LLM` | ❌ | `openrouter`, or the one picked in the app | Model provider: `openrouter`, `openai`, `gemini` or `anthropic` |
 | `OPENROUTER_API_KEY` | with OpenRouter | — | Your OpenRouter API key (can also be saved from inside the app) |
 | `OPENROUTER_DEFAULT_MODEL` | ❌ | `openrouter/free` | Model identifier (see [OpenRouter models](https://openrouter.ai/models)) |
 | `YUVI_MODEL_FAST` | ❌ | main model | Cheap OpenRouter model for triage, routing and summaries |
 | `OPENAI_API_KEY` | with OpenAI | — | Your OpenAI API key (can also be saved from inside the app) |
 | `OPENAI_DEFAULT_MODEL` | ❌ | `gpt-5-mini` | Model identifier (see [OpenAI models](https://platform.openai.com/docs/models)) |
 | `OPENAI_FAST_MODEL` | ❌ | main model | Cheap OpenAI model for triage, routing and summaries |
+| `GEMINI_API_KEY` | with Gemini | — | Your Google AI Studio key (can also be saved from inside the app) |
+| `GEMINI_DEFAULT_MODEL` | ❌ | `gemini-3.8-flash` | Model identifier (see [Gemini models](https://ai.google.dev/gemini-api/docs/models)) |
+| `GEMINI_FAST_MODEL` | ❌ | main model | Cheap Gemini model for triage, routing and summaries |
+| `ANTHROPIC_API_KEY` | with Claude | — | Your Claude API key from platform.claude.com (can also be saved from inside the app) |
+| `ANTHROPIC_DEFAULT_MODEL` | ❌ | `claude-sonnet-5-5` | Model identifier (see [Claude models](https://platform.claude.com/docs/en/about-claude/models/overview)) |
+| `ANTHROPIC_FAST_MODEL` | ❌ | `claude-haiku-5-5` | Cheap Claude model for triage, routing and summaries |
+| `YUVI_REASONING` | ❌ | per task, or the one picked in the app | Thinking effort (`low` … `max`), or `off` for models that reject it |
 | `TAVILY_API_KEY` | ❌ | — | Use Tavily for web search instead of DuckDuckGo |
 | `YUVI_LOG` | ❌ | off | `1` writes a usage log to `~/.yuvi/logs/` (no message text, secrets redacted) |
 | `SKILLS_DIRS` | ❌ | — | Semicolon-separated extra directories to scan for `SKILL.md` files |

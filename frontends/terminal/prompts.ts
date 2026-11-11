@@ -5,6 +5,7 @@
 import { isCancel, log, password, select, text } from "@clack/prompts";
 import chalk from "chalk";
 import type { Settings } from "../../core/config";
+import { profileFor } from "../../core/llm/profiles";
 import type { ChangeGroup, Choice, ConfirmReply, ConfirmRequest } from "../../core/mode";
 import { colorizeDiff } from "./style";
 
@@ -120,16 +121,16 @@ export async function askText(question: string): Promise<string | null> {
     return isCancel(typed) ? null : String(typed ?? "");
 }
 
-/** Ask for a key for the model provider in use and save it for this user. Returns false when skipped. */
-export async function setupApiKey(settings: Settings): Promise<boolean> {
-    const { label, keysUrl } = settings.llmProfile;
+/** Ask for a provider's key (the one in use by default) and save it for this user. Returns false when skipped. */
+export async function setupApiKey(settings: Settings, provider = settings.llmProvider): Promise<boolean> {
+    const { label, keysUrl } = profileFor(provider);
     log.info(
         [
             chalk.bold(`yuvi needs a ${label} key to talk to an AI model.`),
             `1. Open ${keysUrl} and sign in`,
             "2. Create a key and copy it",
             "3. Paste it below — it is saved on this computer only (~/.yuvi/settings.json)",
-            chalk.dim("To use another provider, set YUVI_LLM (openrouter or openai) in .env."),
+            chalk.dim("To use another provider, type / and choose “Switch AI provider”."),
         ].join("\n"),
     );
     const key = await password({
@@ -138,22 +139,7 @@ export async function setupApiKey(settings: Settings): Promise<boolean> {
             value && value.trim().length < MIN_KEY_LENGTH ? "That looks too short to be a key." : undefined,
     });
     if (isCancel(key) || !String(key ?? "").trim()) return false;
-    settings.saveApiKey(String(key).trim());
+    settings.saveApiKey(String(key).trim(), provider);
     log.success("Key saved. You are ready to go.");
     return true;
-}
-
-/** Ask for a new model id and save it. Returns the new id, or null when kept. */
-export async function chooseModel(settings: Settings): Promise<string | null> {
-    log.info(
-        `Current model: ${chalk.cyan(settings.modelId("main"))}\n` +
-        chalk.dim(`Find model ids at ${settings.llmProfile.modelsUrl} (pick one that supports tools).`),
-    );
-    const id = await text({
-        message: "New model id (Esc to keep the current one):",
-        placeholder: settings.modelId("main"),
-    });
-    if (isCancel(id) || !String(id ?? "").trim()) return null;
-    settings.saveModel(String(id).trim());
-    return settings.modelId("main");
 }

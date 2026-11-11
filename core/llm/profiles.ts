@@ -18,6 +18,10 @@ export interface LLMProviderProfile {
     savedModel: keyof UserSettings;
     savedFastModel: keyof UserSettings;
     defaultModel: string;
+    /** A cheaper model for the fast role; the main model when not set. */
+    defaultFastModel?: string;
+    /** Model ids offered in the model menu, best first; the user can still type any id. */
+    suggestedModels: string[];
     keysUrl: string;
     modelsUrl: string;
     billingUrl: string;
@@ -33,6 +37,7 @@ export const LLM_PROFILES: Record<string, LLMProviderProfile> = {
         savedModel: "model",
         savedFastModel: "fastModel",
         defaultModel: "openrouter/free",
+        suggestedModels: ["openrouter/free", "anthropic/claude-sonnet-5.5", "openai/gpt-5-mini", "google/gemini-3.8-flash"],
         keysUrl: "https://openrouter.ai/keys",
         modelsUrl: "https://openrouter.ai/models",
         billingUrl: "https://openrouter.ai/credits",
@@ -47,9 +52,41 @@ export const LLM_PROFILES: Record<string, LLMProviderProfile> = {
         savedFastModel: "openaiFastModel",
         // Cheap and able to call tools, which suits a small prepaid balance.
         defaultModel: "gpt-5-mini",
+        suggestedModels: ["gpt-5-mini", "gpt-5", "gpt-5-nano"],
         keysUrl: "https://platform.openai.com/api-keys",
         modelsUrl: "https://platform.openai.com/docs/models",
         billingUrl: "https://platform.openai.com/settings/organization/billing",
+    },
+    gemini: {
+        label: "Gemini",
+        keyEnv: "GEMINI_API_KEY",
+        modelEnv: "GEMINI_DEFAULT_MODEL",
+        fastModelEnv: "GEMINI_FAST_MODEL",
+        savedKey: "geminiApiKey",
+        savedModel: "geminiModel",
+        savedFastModel: "geminiFastModel",
+        // Stable, cheap and able to call tools; AI Studio has a free tier for it.
+        defaultModel: "gemini-3.8-flash",
+        suggestedModels: ["gemini-3.8-flash", "gemini-3.1-pro-preview", "gemini-flash-latest"],
+        keysUrl: "https://aistudio.google.com/apikey",
+        modelsUrl: "https://ai.google.dev/gemini-api/docs/models",
+        billingUrl: "https://ai.google.dev/gemini-api/docs/billing",
+    },
+    anthropic: {
+        label: "Claude",
+        keyEnv: "ANTHROPIC_API_KEY",
+        modelEnv: "ANTHROPIC_DEFAULT_MODEL",
+        fastModelEnv: "ANTHROPIC_FAST_MODEL",
+        savedKey: "anthropicApiKey",
+        savedModel: "anthropicModel",
+        savedFastModel: "anthropicFastModel",
+        defaultModel: "claude-sonnet-5-5",
+        // Triage and summaries do not need Sonnet; Haiku is much cheaper.
+        defaultFastModel: "claude-haiku-5-5",
+        suggestedModels: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-fable-5-2"],
+        keysUrl: "https://platform.claude.com/settings/keys",
+        modelsUrl: "https://platform.claude.com/docs/en/about-claude/models/overview",
+        billingUrl: "https://platform.claude.com/settings/billing",
     },
 };
 

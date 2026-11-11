@@ -55,7 +55,8 @@ const agent = agentMode("ask", { name: "agent", label: "Agent", description: "te
 function startSession(steps: StreamPart[][], hostOptions: RecordingHostOptions = {}) {
     const model = scriptedModel(steps);
     // Keyword triage and no reviewer: the only model in play is the scripted one.
-    const settings = new Settings({ ...process.env, YUVI_TRIAGE: "off", YUVI_SELF_REVIEW: "off", OPENROUTER_API_KEY: FAKE_API_KEY }, null);
+    // YUVI_LLM is fixed so a provider chosen in the developer's .env cannot leak in.
+    const settings = new Settings({ ...process.env, YUVI_LLM: "openrouter", YUVI_TRIAGE: "off", YUVI_SELF_REVIEW: "off", OPENROUTER_API_KEY: FAKE_API_KEY }, null);
     const core = createCore(settings, { llmProviders: { openrouter: () => () => model } });
     const host = createRecordingHost({ core, workspace: ws.root, grants: agent.tools, ...hostOptions });
     return { host, session: agent.createSession(host), model };
@@ -132,7 +133,7 @@ describe("an agent turn", () => {
                 throw new Error(`401 No auth credentials found for ${FAKE_API_KEY}`);
             },
         });
-        const settings = new Settings({ ...process.env, YUVI_TRIAGE: "off", OPENROUTER_API_KEY: FAKE_API_KEY }, null);
+        const settings = new Settings({ ...process.env, YUVI_LLM: "openrouter", YUVI_TRIAGE: "off", OPENROUTER_API_KEY: FAKE_API_KEY }, null);
         const core = createCore(settings, { llmProviders: { openrouter: () => () => failing } });
         const host = createRecordingHost({ core, workspace: ws.root, grants: agent.tools });
         await turn(agent.createSession(host), "explain this");

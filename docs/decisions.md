@@ -89,3 +89,19 @@ and `modelId()` follow the active profile, so OpenRouter ids never reach OpenAI.
 Each provider has its own saved fields (`openaiApiKey`, `openaiModel`, ...), and
 every provider key is redacted, even when not in use. OpenAI does not report a
 cost per call, so the cost shown is $0; tokens are still counted.
+
+**D22 · 2026-11 · Gemini and Claude are model providers too (`gemini`, `anthropic`).**
+Through `@ai-sdk/google` 4.0.117 (Google AI Studio key, not Vertex) and
+`@ai-sdk/anthropic` 4.0.102, pinned. One `LLM_PROVIDERS` and one `LLM_PROFILES`
+entry each. A profile may name a cheaper `defaultFastModel` (Claude: Haiku).
+The provider part of `Settings.SECRET_ENV_NAMES` is built from the profiles, so
+a new provider cannot forget to hide its key from shell commands.
+
+**D23 · 2026-11 · Provider, model and effort can be switched from the menus, mid-session.**
+`Settings` saves `llmProvider` and `reasoning` like the model: a choice made in
+this run, then `.env`, then the saved file. `Models` looks up the provider on
+every call, so a switch needs no restart. The option lists live in
+`core/llm/choices.ts`, because both front ends show them. The terminal asks for
+a missing key when switching; Telegram never takes keys, so it refuses a
+provider without one (it re-reads the settings file first, to see a key saved
+from the terminal).

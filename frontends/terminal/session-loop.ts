@@ -18,7 +18,8 @@ import {
     type ModeSession,
 } from "../../core/mode";
 import { readInput } from "./input";
-import { askText, chooseModel, chooseOne, confirmChanges, confirmCommand, setupApiKey } from "./prompts";
+import { chooseEffort, chooseModel, chooseProvider, type MenuNotice } from "./model-menu";
+import { askText, chooseOne, confirmChanges, confirmCommand, setupApiKey } from "./prompts";
 import { TerminalRenderer } from "./renderer";
 import { paint, styled } from "./style";
 
@@ -71,7 +72,7 @@ function showHelp(session: ModeSession, typed: boolean, commands: ModeCommand[])
     log.info(lines.join("\n"));
 }
 
-/** Commands every mode gets from the terminal itself: model, key, help, exit. */
+/** Commands every mode gets from the terminal itself: provider, model, effort, key, help, exit. */
 function appCommands(
     mode: Mode,
     core: Core,
@@ -79,21 +80,32 @@ function appCommands(
     help: () => void,
 ): ModeCommand[] {
     const typed = mode.commandStyle === "typed";
+    const { settings } = core;
+    const show = (notice: MenuNotice | null) => notice && renderer.render({ type: "notice", ...notice });
     return [
+        {
+            name: "/provider",
+            label: "Switch AI provider",
+            hint: typed ? "OpenRouter, OpenAI, Gemini or Claude" : `now: ${settings.llmProfile.label}`,
+            run: async () => void show(await chooseProvider(settings)),
+        },
         {
             name: "/model",
             label: "Change AI model",
-            hint: typed ? "change the AI model" : `now: ${core.settings.modelId("main")}`,
-            run: async () => {
-                const id = await chooseModel(core.settings);
-                if (id) renderer.render({ type: "notice", level: "success", text: `Model changed to ${id} and saved for next time.` });
-            },
+            hint: typed ? "change the AI model" : `now: ${settings.modelId("main")}`,
+            run: async () => void show(await chooseModel(settings)),
+        },
+        {
+            name: "/effort",
+            label: "Change thinking effort",
+            hint: typed ? "how hard the model thinks" : `now: ${settings.reasoning ?? "default"}`,
+            run: async () => void show(await chooseEffort(settings)),
         },
         {
             name: "/key",
             label: "Set API key",
-            hint: typed ? `set your ${core.settings.llmProfile.label} key` : `${core.settings.llmProfile.label} key`,
-            run: async () => void (await setupApiKey(core.settings)),
+            hint: typed ? `set your ${settings.llmProfile.label} key` : `${settings.llmProfile.label} key`,
+            run: async () => void (await setupApiKey(settings)),
         },
         { name: "/help", label: "Help", hint: typed ? "what you can do here" : "keys and modes", run: help },
         { name: "/exit", label: `Exit ${mode.label.toLowerCase()}`, hint: "back to the main menu", run: () => "exit" },
@@ -128,7 +140,8 @@ export async function runModeSession(mode: Mode): Promise<void> {
         );
     }
 
-    const renderer = new TerminalRenderer(core.settings.llmProfile);
+    // A getter, so error advice names the provider switched to in the menu.
+    const renderer = new TerminalRenderer(() => core.settings.llmProfile);
     const host: ModeHost = {
         core: grantTools(core, mode.name, mode.tools),
         grants: mode.tools,

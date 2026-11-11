@@ -9,15 +9,20 @@
 import fs from "node:fs";
 import path from "node:path";
 import { homedir } from "node:os";
+import { ConfigError } from "./errors";
 import { LLM_PROFILES, profileFor, type LLMProviderProfile } from "./llm/profiles";
 
 export type ModelRole = "main" | "fast";
 
 export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-const REASONING_EFFORTS: ReasoningEffort[] = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+export const REASONING_EFFORTS: readonly ReasoningEffort[] = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 /** Settings saved for this user, so they work in every project. */
 export interface UserSettings {
+    /** The model provider picked in a menu (a name in LLM_PROFILES). */
+    llmProvider?: string;
+    /** The reasoning effort picked in a menu: a ReasoningEffort or "off". */
+    reasoning?: string;
     /** OpenRouter key and models (the names predate other providers). */
     apiKey?: string;
     model?: string;
@@ -25,6 +30,12 @@ export interface UserSettings {
     openaiApiKey?: string;
     openaiModel?: string;
     openaiFastModel?: string;
+    geminiApiKey?: string;
+    geminiModel?: string;
+    geminiFastModel?: string;
+    anthropicApiKey?: string;
+    anthropicModel?: string;
+    anthropicFastModel?: string;
 }
 
 type Env = Record<string, string | undefined>;
@@ -66,7 +77,9 @@ export class Settings {
     save(patch: UserSettings): void {
         this.saved = { ...this.saved, ...patch };
         for (const [key, value] of Object.entries(patch)) {
+            // An empty value clears the setting, so the environment or default applies again.
             if (value) this.changed[key as keyof UserSettings] = value;
+            else delete this.changed[key as keyof UserSettings];
         }
         if (!this.file) return;
         fs.mkdirSync(path.dirname(this.file), { recursive: true });
@@ -125,9 +138,15 @@ export class Settings {
         return this.pick(profile.keyEnv, profile.savedKey);
     }
 
-    /** Save a key for the model provider in use. */
-    saveApiKey(key: string): void {
-        this.save({ [this.llmProfile.savedKey]: key });
+    /** Save a key for a provider: the one in use unless another is named. */
+    saveApiKey(key: string, provider = this.llmProvider): void {
+        this.save({ [profileFor(provider).savedKey]: key });
+    }
+
+    /** Whether a provider has a key, so a menu can switch to it safely. */
+    hasKey(provider: string): boolean {
+        const profile = profileFor(provider);
+        return Boolean(this.pick(profile.keyEnv, profile.savedKey));
     }
 
     /** Save the main model for the model provider in use. */
@@ -151,14 +170,15 @@ export class Settings {
 
     /**
      * The model id for a role, for the model provider in use.
-     * main - planning, editing, answering (OPENROUTER_DEFAULT_MODEL / OPENAI_DEFAULT_MODEL)
-     * fast - triage, routing, summaries (YUVI_MODEL_FAST / OPENAI_FAST_MODEL, falls back to main)
+     * main - planning, editing, answering (the profile's modelEnv, e.g. OPENAI_DEFAULT_MODEL)
+     * fast - triage, routing, summaries (the profile's fastModelEnv; then its
+     *        cheaper default if it has one; then the main model)
      */
     modelId(role: ModelRole = "main"): string {
         const profile = this.llmProfile;
         const main = this.pick(profile.modelEnv, profile.savedModel) || profile.defaultModel;
         if (role === "main") return main;
-        return this.pick(profile.fastModelEnv, profile.savedFastModel) || main;
+        return this.pick(profile.fastModelEnv, profile.savedFastModel) || profile.defaultFastModel || main;
     }
 
     /**
@@ -166,14 +186,44 @@ export class Settings {
      * models that reject it). Undefined means the caller picks the effort.
      */
     get reasoning(): ReasoningEffort | "off" | undefined {
-        const value = (this.env.YUVI_REASONING || "").toLowerCase();
+        const value = this.pickString("YUVI_REASONING", "reasoning").toLowerCase();
         if (value === "off") return "off";
         return REASONING_EFFORTS.find((effort) => effort === value);
     }
 
+    /** Save a reasoning effort for this user; undefined goes back to each mode's own choice. */
+    saveReasoning(effort: ReasoningEffort | "off" | undefined): void {
+        this.save({ reasoning: effort ?? "" });
+    }
+
     /** Which model provider adapter to build. */
     get llmProvider(): string {
-        return (this.env.YUVI_LLM || this.env.YUVI_CHAT_LLM || DEFAULT_LLM_PROVIDER).toLowerCase();
+        const env = this.env.YUVI_LLM || this.env.YUVI_CHAT_LLM;
+        return (this.changed.llmProvider || env || this.pickString("", "llmProvider") || DEFAULT_LLM_PROVIDER).toLowerCase();
+    }
+
+    /** True when .env names the provider, so a saved choice is overridden at the next start. */
+    get providerSetInEnv(): boolean {
+        return Boolean(this.env.YUVI_LLM || this.env.YUVI_CHAT_LLM);
+    }
+
+    /** True when .env sets the effort, so a saved choice is overridden at the next start. */
+    get reasoningSetInEnv(): boolean {
+        return Boolean(this.env.YUVI_REASONING);
+    }
+
+    /** Switch to another model provider and save the choice. Refuses a name with no profile. */
+    saveProvider(name: string): void {
+        if (!LLM_PROFILES[name]) {
+            throw new ConfigError(`Unknown model provider "${name}". Available: ${Object.keys(LLM_PROFILES).join(", ")}.`);
+        }
+        this.save({ llmProvider: name });
+    }
+
+    /** Like pick, but a saved value that is not a string (a hand-edited file) is ignored. */
+    private pickString(envName: string, saved: keyof UserSettings): string {
+        const value = this.pick(envName, saved);
+        return typeof value === "string" ? value : "";
     }
 
     /** Which search adapter to build: "auto", "duckduckgo" or "tavily". */
@@ -210,12 +260,14 @@ export class Settings {
         return copy;
     }
 
-    /** Names of the environment variables that hold those values. */
-    static readonly SECRET_ENV_NAMES = [
-        "OPENROUTER_API_KEY",
-        "OPENAI_API_KEY",
+    /**
+     * Names of the environment variables that hold those values. Provider key
+     * names come from the profiles, so a new provider cannot forget its key.
+     */
+    static readonly SECRET_ENV_NAMES: readonly string[] = [
+        ...new Set(Object.values(LLM_PROFILES).map((profile) => profile.keyEnv)),
         "TAVILY_API_KEY",
         "TELEGRAM_BOT_TOKEN",
         "YUVI_TELEGRAM_PIN",
-    ] as const;
+    ];
 }

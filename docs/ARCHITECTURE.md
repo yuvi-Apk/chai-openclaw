@@ -115,7 +115,7 @@ The full definitions, with comments, are in `core/mode.ts`.
 | To change | Do this |
 |---|---|
 | Search engine | Write a class that implements `SearchProvider`, add one entry to `SEARCH_PROVIDERS` in `core/search/providers.ts`, set `YUVI_SEARCH=<name>`. |
-| Model provider | Add one entry to `LLM_PROVIDERS` in `core/llm/providers.ts` that returns an AI SDK model for an id, one entry to `LLM_PROFILES` in `core/llm/profiles.ts` (key and model variables, links), and its key name to `Settings.SECRET_ENV_NAMES`; set `YUVI_LLM=<name>`. |
+| Model provider | Add one entry to `LLM_PROVIDERS` in `core/llm/providers.ts` that returns an AI SDK model for an id, one entry to `LLM_PROFILES` in `core/llm/profiles.ts` (key and model variables, saved fields, suggested models, links), and its saved fields to `UserSettings` in `core/config.ts`. Its key is then hidden from shell commands, and it appears in both front ends' provider menus, with no other change. |
 | History or cache storage | Implement `HistoryStore` or `Cache` and pass it to `createChatEngine` in `modes/chat/factory.ts`. |
 | Front end | Implement `ModeHost` and call `mode.createSession(host)`. `core/testing.ts` has the smallest working example. |
 
@@ -123,16 +123,22 @@ The full definitions, with comments, are in `core/mode.ts`.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `YUVI_LLM` | `openrouter` | Model provider: `openrouter` or `openai` |
+| `YUVI_LLM` | `openrouter`, or the one picked in the app | Model provider: `openrouter`, `openai`, `gemini` or `anthropic` |
 | `OPENROUTER_API_KEY` | none | OpenRouter key (can also be saved from the app) |
 | `OPENROUTER_DEFAULT_MODEL` | `openrouter/free` | Main model on OpenRouter |
 | `YUVI_MODEL_FAST` | main model | Cheap OpenRouter model for triage, routing and summaries |
 | `OPENAI_API_KEY` | none | OpenAI key, used when `YUVI_LLM=openai` (can also be saved from the app) |
 | `OPENAI_DEFAULT_MODEL` | `gpt-5-mini` | Main model on OpenAI |
 | `OPENAI_FAST_MODEL` | main model | Cheap OpenAI model for triage, routing and summaries |
+| `GEMINI_API_KEY` | none | Google AI Studio key (can also be saved from the app) |
+| `GEMINI_DEFAULT_MODEL` | `gemini-3.8-flash` | Main model on Gemini |
+| `GEMINI_FAST_MODEL` | main model | Cheap Gemini model for triage, routing and summaries |
+| `ANTHROPIC_API_KEY` | none | Claude key from platform.claude.com (can also be saved from the app) |
+| `ANTHROPIC_DEFAULT_MODEL` | `claude-sonnet-5-5` | Main model on Claude |
+| `ANTHROPIC_FAST_MODEL` | `claude-haiku-5-5` | Cheap Claude model for triage, routing and summaries |
 | `YUVI_SEARCH` | `auto` | `auto`, `duckduckgo` or `tavily` |
 | `TAVILY_API_KEY` | none | Enables Tavily search |
-| `YUVI_REASONING` | per task | Reasoning effort, or `off` |
+| `YUVI_REASONING` | per task, or the one picked in the app | Reasoning effort, or `off` |
 | `YUVI_LOG` | off | `1` writes `~/.yuvi/logs/<date>.jsonl` (no message text, secrets redacted) |
 | `YUVI_DEV` | off | `1` shows the example Echo mode |
 | `YUVI_CONTEXT_WINDOW`, `YUVI_TRIAGE`, `YUVI_SELF_REVIEW`, `SKILLS_DIRS` | | Agent mode, see `modes/agent/types.ts` |

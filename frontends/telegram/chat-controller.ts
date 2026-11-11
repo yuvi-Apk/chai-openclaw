@@ -21,12 +21,12 @@ import { FRONT_COMMANDS, LOCK_COMMANDS, parseCommand } from "./commands";
 import type { TelegramConfig } from "./config";
 import { receiveDocument, sendFile, type FileContext, type IncomingDocument } from "./files";
 import { TelegramHost } from "./host";
+import type { ModelMenuContext } from "./model-settings";
 import type { Questions } from "./questions";
 import { escapeHtml, linesHtml } from "./view/html";
 import { ChatMessenger } from "./view/messenger";
 
 const MAX_INPUT_CHARS = 8000;
-const MODEL_ID = /^[\w./:@-]{3,120}$/;
 /** Mode commands offered as buttons under an answer, when the mode has them. */
 const QUICK_COMMANDS = ["/undo", "/new", "/mode"];
 /** Marks a button that runs a command, as if the user had typed it. */
@@ -219,16 +219,10 @@ export class ChatController {
         );
     }
 
-    async changeModel(): Promise<void> {
-        const { settings } = this.deps.core;
-        await this.messenger.send(
-            `Current model: <code>${escapeHtml(settings.modelId("main"))}</code>\nSend the new model id (from ${escapeHtml(settings.llmProfile.modelsUrl)}), or /cancel.`,
-        );
-        const id = (await this.deps.questions.text(this.deps.chatId))?.trim();
-        if (!id) return;
-        if (!MODEL_ID.test(id)) return void (await this.messenger.send("✗ That does not look like a model id. Nothing was changed."));
-        settings.saveModel(id);
-        await this.messenger.send(`✓ Model changed to <code>${escapeHtml(settings.modelId("main"))}</code> and saved.`);
+    /** What /provider, /model and /effort need (model-settings.ts). */
+    get modelMenu(): ModelMenuContext {
+        const { chatId, core, questions } = this.deps;
+        return { chatId, settings: core.settings, messenger: this.messenger, questions, log: core.log };
     }
 
     async chooseProject(): Promise<void> {

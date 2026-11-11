@@ -138,6 +138,103 @@ describe("settings per model provider", () => {
         }
     });
 
+    test("Gemini uses its own key, models and default", () => {
+        const env = { ...bothKeys, YUVI_LLM: "gemini", GEMINI_API_KEY: "gemini-key-123456" };
+        const settings = new Settings(env, null);
+        expect(settings.llmProfile.label).toBe("Gemini");
+        expect(settings.apiKey).toBe("gemini-key-123456");
+        expect(settings.modelId("main")).toBe("gemini-3.8-flash");
+        expect(settings.modelId("fast")).toBe("gemini-3.8-flash");
+        const picked = new Settings({ ...env, GEMINI_DEFAULT_MODEL: "gemini-pro", GEMINI_FAST_MODEL: "gemini-lite" }, null);
+        expect(picked.modelId("main")).toBe("gemini-pro");
+        expect(picked.modelId("fast")).toBe("gemini-lite");
+    });
+
+    test("Claude uses its own key and a cheaper default for the fast role", () => {
+        const env = { ...bothKeys, YUVI_LLM: "anthropic", ANTHROPIC_API_KEY: "sk-ant-key-123456" };
+        const settings = new Settings(env, null);
+        expect(settings.llmProfile.label).toBe("Claude");
+        expect(settings.apiKey).toBe("sk-ant-key-123456");
+        expect(settings.modelId("main")).toBe("claude-sonnet-5-5");
+        expect(settings.modelId("fast")).toBe("claude-haiku-5-5");
+        expect(new Settings({ ...env, ANTHROPIC_DEFAULT_MODEL: "claude-opus-5-5" }, null).modelId("fast")).toBe("claude-haiku-5-5");
+        expect(new Settings({ ...env, ANTHROPIC_FAST_MODEL: "claude-x" }, null).modelId("fast")).toBe("claude-x");
+    });
+
+    test("keys and models saved for Gemini and Claude go to their own fields", () => {
+        const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "yuvi-settings-")), "settings.json");
+        const gemini = new Settings({ YUVI_LLM: "gemini" }, file);
+        gemini.saveApiKey("gemini-saved-123");
+        gemini.saveModel("gemini-picked");
+        const claude = new Settings({ YUVI_LLM: "anthropic" }, file);
+        claude.saveApiKey("sk-ant-saved-123");
+        claude.saveModel("claude-picked");
+        expect(JSON.parse(fs.readFileSync(file, "utf8"))).toEqual({
+            geminiApiKey: "gemini-saved-123",
+            geminiModel: "gemini-picked",
+            anthropicApiKey: "sk-ant-saved-123",
+            anthropicModel: "claude-picked",
+        });
+        expect(new Settings({}, file).apiKey).toBe("");
+        fs.rmSync(path.dirname(file), { recursive: true, force: true });
+    });
+
+    test("every provider's key is hidden and kept from shell commands", () => {
+        const env = { GEMINI_API_KEY: "gemini-key-123456", ANTHROPIC_API_KEY: "sk-ant-key-123456", PATH: "/bin" };
+        const settings = new Settings(env, null);
+        expect(settings.secrets()).toContain("gemini-key-123456");
+        expect(settings.secrets()).toContain("sk-ant-key-123456");
+        expect(settings.childEnv()).toEqual({ PATH: "/bin" });
+    });
+
+    test("a provider picked in the app is saved; .env beats the file, a pick made now beats both", () => {
+        const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "yuvi-settings-")), "settings.json");
+        new Settings({}, file).saveProvider("anthropic");
+        expect(JSON.parse(fs.readFileSync(file, "utf8"))).toEqual({ llmProvider: "anthropic" });
+        expect(new Settings({}, file).llmProvider).toBe("anthropic");
+        expect(new Settings({}, file).llmProfile.label).toBe("Claude");
+
+        const withEnv = new Settings({ YUVI_LLM: "openai" }, file);
+        expect(withEnv.llmProvider).toBe("openai");
+        withEnv.saveProvider("gemini");
+        expect(withEnv.llmProvider).toBe("gemini");
+        fs.rmSync(path.dirname(file), { recursive: true, force: true });
+    });
+
+    test("an unknown provider is refused and nothing is saved", () => {
+        const settings = new Settings({}, null);
+        expect(() => settings.saveProvider("nope")).toThrow(ConfigError);
+        expect(settings.llmProvider).toBe("openrouter");
+    });
+
+    test("a reasoning effort picked in the app is saved, and clearing it falls back", () => {
+        const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "yuvi-settings-")), "settings.json");
+        const settings = new Settings({}, file);
+        settings.saveReasoning("high");
+        expect(settings.reasoning).toBe("high");
+        expect(new Settings({}, file).reasoning).toBe("high");
+        settings.saveReasoning("off");
+        expect(settings.reasoning).toBe("off");
+        settings.saveReasoning(undefined);
+        expect(settings.reasoning).toBeUndefined();
+        expect(new Settings({}, file).reasoning).toBeUndefined();
+
+        const withEnv = new Settings({ YUVI_REASONING: "low" }, file);
+        expect(withEnv.reasoning).toBe("low");
+        withEnv.saveReasoning(undefined);
+        expect(withEnv.reasoning).toBe("low");
+        fs.rmSync(path.dirname(file), { recursive: true, force: true });
+    });
+
+    test("odd values in a hand-edited settings file are ignored", () => {
+        const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "yuvi-settings-")), "settings.json");
+        fs.writeFileSync(file, JSON.stringify({ llmProvider: 42, reasoning: "loud" }));
+        const settings = new Settings({}, file);
+        expect(settings.llmProvider).toBe("openrouter");
+        expect(settings.reasoning).toBeUndefined();
+        fs.rmSync(path.dirname(file), { recursive: true, force: true });
+    });
+
     test("a custom provider without a profile shares OpenRouter's settings", () => {
         const settings = new Settings({ ...bothKeys, YUVI_LLM: "local" }, null);
         expect(settings.llmProfile.label).toBe("OpenRouter");
@@ -174,6 +271,22 @@ describe("errors", () => {
         expect(classifyError("429 You exceeded your current quota, please check your plan and billing details.")).toBe("no_credits");
         expect(classifyError("insufficient_quota")).toBe("no_credits");
         expect(classifyError("The model `gpt-9` does not exist or you do not have access to it.")).toBe("model_not_found");
+    });
+
+    test("Claude failures are recognised", () => {
+        expect(classifyError("Anthropic API key is missing. Pass it using the 'apiKey' parameter")).toBe("auth_missing");
+        expect(classifyError("authentication_error: invalid x-api-key")).toBe("auth_rejected");
+        expect(classifyError("Your credit balance is too low to access the Anthropic API.")).toBe("no_credits");
+        expect(classifyError("529 overloaded_error: Overloaded")).toBe("provider_down");
+        expect(classifyError("model: claude-x")).toBe("unknown");
+    });
+
+    test("Gemini failures are recognised", () => {
+        expect(classifyError("Google Generative AI API key is missing.")).toBe("auth_missing");
+        expect(classifyError("API key not valid. Please pass a valid API key.")).toBe("auth_rejected");
+        expect(classifyError("API key expired. Please renew the API key.")).toBe("auth_rejected");
+        expect(classifyError("RESOURCE_EXHAUSTED: Resource has been exhausted (e.g. check quota).")).toBe("rate_limited");
+        expect(classifyError("models/gemini-9 is not found for API version v1beta")).toBe("model_not_found");
     });
 });
 
@@ -260,6 +373,34 @@ describe("composition", () => {
         const model = core.models.forRole("main") as { provider: string; modelId: string };
         expect(model.provider).toStartWith("openai");
         expect(model.modelId).toBe("gpt-5-mini");
+    });
+
+    test("Gemini and Claude models are built without any network call", () => {
+        const gemini = createCore(new Settings({ YUVI_LLM: "gemini", GEMINI_API_KEY: "gemini-key-123456" }, null));
+        const geminiModel = gemini.models.forRole("main") as { provider: string; modelId: string };
+        expect(geminiModel.provider).toStartWith("google");
+        expect(geminiModel.modelId).toBe("gemini-3.8-flash");
+
+        const claude = createCore(new Settings({ YUVI_LLM: "anthropic", ANTHROPIC_API_KEY: "sk-ant-key-123456" }, null));
+        const claudeModel = claude.models.forRole("fast") as { provider: string; modelId: string };
+        expect(claudeModel.provider).toStartWith("anthropic");
+        expect(claudeModel.modelId).toBe("claude-haiku-5-5");
+    });
+
+    test("switching the provider mid-session changes the next model without a restart", () => {
+        const settings = new Settings({ OPENROUTER_API_KEY: "sk-or-router-key-123", ANTHROPIC_API_KEY: "sk-ant-key-123456" }, null);
+        const core = createCore(settings);
+        expect((core.models.forRole("main") as { provider: string }).provider).toStartWith("openrouter");
+        settings.saveProvider("anthropic");
+        const model = core.models.forRole("main") as { provider: string; modelId: string };
+        expect(model.provider).toStartWith("anthropic");
+        expect(model.modelId).toBe("claude-sonnet-5-5");
+    });
+
+    test("every profile suggests its own default model first", () => {
+        for (const profile of Object.values(LLM_PROFILES)) {
+            expect(profile.suggestedModels[0]).toBe(profile.defaultModel);
+        }
     });
 
     test("ready-made parts are used as given", async () => {

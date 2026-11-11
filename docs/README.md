@@ -9,7 +9,7 @@ Welcome! This folder is your **living textbook** for the project. Every doc here
 `yuvi` has one command, `wakeup`. It shows a big colourful **YUVI** banner, then asks how you want to talk to it:
 
 - **CLI mode** ✅: a menu in your terminal with **Agent**, **Plan**, **Chat**, **Help**, and **Exit**.
-  - **Agent** is an AI helper (through [OpenRouter](concepts/openrouter.md) or OpenAI, picked with `YUVI_LLM`) that can read your project, search it, and *propose* file changes or shell commands. Proposed changes are **staged**. You then approve them all at once, or review them one by one with a [diff](concepts/unified-diffs.md) preview, and only the approved ones are applied.
+  - **Agent** is an AI helper (through [OpenRouter](concepts/openrouter.md), OpenAI, Gemini or Claude; switch between them by typing `/` and choosing "Switch AI provider") that can read your project, search it, and *propose* file changes or shell commands. Proposed changes are **staged**. You then approve them all at once, or review them one by one with a [diff](concepts/unified-diffs.md) preview, and only the approved ones are applied.
   - **Chat** currently echoes your message back, and **Plan** is a placeholder.
 - **Telegram mode**: still "coming soon...".
 
@@ -54,11 +54,11 @@ You type:  yuvi wakeup
 ```bash
 bun install              # install dependencies
 # create a .env file (Bun loads it automatically); .env.example lists every setting.
-#   YUVI_LLM=openrouter                         # or openai
-#   OPENROUTER_API_KEY=sk-or-...                # when using OpenRouter
-#   OPENROUTER_DEFAULT_MODEL=openrouter/free    # optional
-#   OPENAI_API_KEY=sk-proj-...                  # when using OpenAI
-#   OPENAI_DEFAULT_MODEL=gpt-5-mini             # optional
+#   OPENROUTER_API_KEY=sk-or-...                # any one key is enough
+#   OPENAI_API_KEY=sk-proj-...
+#   GEMINI_API_KEY=...
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   # YUVI_LLM=openrouter                       # optional; or pick the provider in the app
 bun run index.ts wakeup  # run the wakeup command directly
 bun link                 # (optional) register the `yuvi` command on your machine
 yuvi wakeup              # then run it like a real CLI
@@ -67,6 +67,8 @@ yuvi --version           # prints 0.0.1
 ```
 
 In menus, use the **arrow keys** and **Enter**. Press **Ctrl+C** or **Esc** to cancel. In a text prompt, typing `exit` also leaves.
+
+Inside a mode, type `/` for the shared commands: **Switch AI provider**, **Change AI model**, **Change thinking effort** and **Set API key**. In Telegram the same menus are `/provider`, `/model` and `/effort`, shown as buttons (keys are only ever set on your PC). Your choices are saved in `~/.yuvi/settings.json`.
 
 ## 📂 Map of the docs
 
@@ -87,16 +89,20 @@ In menus, use the **arrow keys** and **Enter**. Press **Ctrl+C** or **Esc** to c
 - [files/modes/agent/types.ts.md](files/modes/agent/types.ts.md): shared types (`ActionLog`, `AgentConfig`) and the default agent config.
 - [files/ai/ai.config.ts.md](files/ai/ai.config.ts.md): picks the AI model through OpenRouter, using environment variables.
 - [files/ai/index.ts.md](files/ai/index.ts.md): barrel file that re-exports `getAgentModel`.
-- [files/core/config.ts.md](files/core/config.ts.md): the one place settings come from. Env, saved file, per-provider key and model, and secret hiding.
-- [files/core/errors.ts.md](files/core/errors.ts.md): the app's error family and `classifyError`, which sorts OpenRouter and OpenAI failures into kinds.
-- [files/core/llm/profiles.ts.md](files/core/llm/profiles.ts.md): one data entry per model provider: env names, saved names, default model and links.
-- [files/core/llm/providers.ts.md](files/core/llm/providers.ts.md): the model registry (OpenRouter, OpenAI) and the `Models` factory.
-- [files/frontends/terminal/session-loop.ts.md](files/frontends/terminal/session-loop.ts.md): runs one mode session in the terminal and adds the shared `/key`, `/model`, help and exit commands.
+- [files/core/config.ts.md](files/core/config.ts.md): the one place settings come from. Env, saved file, per-provider key and model, saved provider and effort, and secret hiding.
+- [files/core/errors.ts.md](files/core/errors.ts.md): the app's error family and `classifyError`, which sorts OpenRouter, OpenAI, Claude and Gemini failures into kinds.
+- [files/core/llm/profiles.ts.md](files/core/llm/profiles.ts.md): one data entry per model provider: env names, saved names, default and suggested models, and links.
+- [files/core/llm/providers.ts.md](files/core/llm/providers.ts.md): the model registry (OpenRouter, OpenAI, Gemini, Claude) and the `Models` factory that follows a mid-session switch.
+- [files/core/llm/choices.ts.md](files/core/llm/choices.ts.md): the shared option lists for the provider, model and effort menus.
+- [files/frontends/terminal/session-loop.ts.md](files/frontends/terminal/session-loop.ts.md): runs one mode session in the terminal and adds the shared `/provider`, `/model`, `/effort`, `/key`, help and exit commands.
+- [files/frontends/terminal/model-menu.ts.md](files/frontends/terminal/model-menu.ts.md): the terminal menus to switch provider, pick a model and set the effort.
 - [files/frontends/terminal/renderer.ts.md](files/frontends/terminal/renderer.ts.md): draws mode events on the terminal, including the plain-words error box.
-- [files/frontends/terminal/prompts.ts.md](files/frontends/terminal/prompts.ts.md): every terminal question: approve changes, allow commands, set the key, change the model.
+- [files/frontends/terminal/prompts.ts.md](files/frontends/terminal/prompts.ts.md): every terminal question: approve changes, allow commands, pick, type, set a provider's key.
 - [files/frontends/terminal/errors.ts.md](files/frontends/terminal/errors.ts.md): terminal wording for each error kind, naming the active provider.
 - [files/frontends/telegram/host.ts.md](files/frontends/telegram/host.ts.md): the `ModeHost` for one Telegram chat.
-- [files/frontends/telegram/chat-controller.ts.md](files/frontends/telegram/chat-controller.ts.md): one Telegram chat's mode, session and turn, plus the `/model` command.
+- [files/frontends/telegram/chat-controller.ts.md](files/frontends/telegram/chat-controller.ts.md): one Telegram chat's mode, session and turn, and the context it hands to the model menus.
+- [files/frontends/telegram/commands.ts.md](files/frontends/telegram/commands.ts.md): the table of Telegram front-end commands (`/menu`, `/stop`, `/provider`, ...).
+- [files/frontends/telegram/model-settings.ts.md](files/frontends/telegram/model-settings.ts.md): Telegram's `/provider`, `/model` and `/effort` button menus; keys are never taken in chat.
 - [files/frontends/telegram/view/turn-view.ts.md](files/frontends/telegram/view/turn-view.ts.md): turns one turn's events into Telegram text, including error HTML.
 - [files/frontends/telegram/errors.ts.md](files/frontends/telegram/errors.ts.md): Telegram wording for each error kind, with short provider links.
 - [files/package.json.md](files/package.json.md): project identity card: name, `bin`, scripts, and dependencies.
@@ -132,7 +138,7 @@ In menus, use the **arrow keys** and **Enter**. Press **Ctrl+C** or **Esc** to c
 - [concepts/ai-sdk-agents.md](concepts/ai-sdk-agents.md): the `ai` package: models, tools, and the `ToolLoopAgent` loop.
 - [concepts/zod-schemas.md](concepts/zod-schemas.md): describing and checking data shapes with Zod.
 - [concepts/openrouter.md](concepts/openrouter.md): one API key for many AI models.
-- [concepts/provider-profiles.md](concepts/provider-profiles.md): supporting several AI services with one data entry each, plus the "who wins" order for settings.
+- [concepts/provider-profiles.md](concepts/provider-profiles.md): supporting several AI services with one data entry each, what follows from them automatically, and the "who wins" order for settings.
 - [concepts/environment-variables.md](concepts/environment-variables.md): `process.env`, `.env` files, and keeping secrets out of code.
 - [concepts/user-settings-file.md](concepts/user-settings-file.md): settings saved in your home folder (`~/.yuvi/settings.json`).
 - [concepts/staged-changes-and-approval.md](concepts/staged-changes-and-approval.md): the stage → approve → apply safety pattern for AI agents.
