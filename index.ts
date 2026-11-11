@@ -3,6 +3,7 @@
 import { Command } from "commander";
 import { wakeup } from "./frontends/terminal/banner";
 import { runTerminal } from "./frontends/terminal/app";
+import { runTelegram } from "./frontends/telegram/app";
 import { modes } from "./modes";
 
 const program = new Command();
@@ -19,9 +20,15 @@ program
         const channel = await wakeup();
         if (!channel) process.exit(0);
 
-        // TODO: start the Telegram front end once it's built
         if (channel === "cli") await runTerminal(modes);
-        else console.log("Telegram mode coming soon...");
+        else await runTelegram(modes);
+    })
+
+program
+    .command("telegram")
+    .description("start the Telegram bot directly, without the menu.")
+    .action(async () => {
+        await runTelegram(modes);
     })
 
 await program.parseAsync(process.argv)

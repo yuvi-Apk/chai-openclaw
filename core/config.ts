@@ -113,6 +113,16 @@ export class Settings {
         return this.env.TAVILY_API_KEY || "";
     }
 
+    /** The Telegram bot token from @BotFather (TELEGRAM_BOT_TOKEN in .env). */
+    get telegramToken(): string {
+        return this.env.TELEGRAM_BOT_TOKEN || "";
+    }
+
+    /** The PIN that unlocks the Telegram bot (YUVI_TELEGRAM_PIN in .env). */
+    get telegramPin(): string {
+        return this.env.YUVI_TELEGRAM_PIN || "";
+    }
+
     /**
      * The model id for a role.
      * main - planning, editing, answering (OPENROUTER_DEFAULT_MODEL)
@@ -157,7 +167,9 @@ export class Settings {
 
     /** Values that must never be printed, logged or handed to other programs. */
     secrets(): string[] {
-        return [this.apiKey, this.tavilyApiKey].filter((value) => value.length >= MIN_SECRET_LENGTH);
+        return [this.apiKey, this.tavilyApiKey, this.telegramToken, this.telegramPin].filter(
+            (value) => value.length >= MIN_SECRET_LENGTH,
+        );
     }
 
     /**
@@ -171,5 +183,10 @@ export class Settings {
     }
 
     /** Names of the environment variables that hold those values. */
-    static readonly SECRET_ENV_NAMES = ["OPENROUTER_API_KEY", "TAVILY_API_KEY"] as const;
+    static readonly SECRET_ENV_NAMES = [
+        "OPENROUTER_API_KEY",
+        "TAVILY_API_KEY",
+        "TELEGRAM_BOT_TOKEN",
+        "YUVI_TELEGRAM_PIN",
+    ] as const;
 }

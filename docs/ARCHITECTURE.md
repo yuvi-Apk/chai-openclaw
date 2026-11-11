@@ -9,7 +9,8 @@ index.ts                     starts a front end and hands it the mode registry
    │
    ▼
 frontends/terminal/          reads input, shows output, asks the user questions
-   │   uses only: core/ and modes/index.ts
+frontends/telegram/          the same job in a Telegram chat (messages and buttons)
+   │   use only: core/ and modes/index.ts
    ▼
 modes/                       the logic of each mode
    ├── index.ts              the registry: one register() line per mode
@@ -37,6 +38,8 @@ core/                        everything the modes share; imports nothing above i
 | `core/testing.ts` | Test doubles: a scripted model and a host with no screen. |
 | `modes/<name>/mode.ts` | The mode's entry point. Everything else in the folder is private to the mode. |
 | `frontends/terminal/` | `app.ts` (main menu), `session-loop.ts` (runs any mode), `renderer.ts` (events to screen), `prompts.ts` (questions), `input.ts` (the input box). |
+| `frontends/telegram/` | `app.ts` (start), `poller.ts` (fetch updates), `router.ts` (allowlist, PIN lock, rate limit), `chat-controller.ts` (one chat: mode, session, turn), `host.ts` (`ModeHost`), `confirm-view.ts` (approval buttons), `questions.ts` (one-time buttons), `lock.ts`, `files.ts`, `commands.ts`, `api/` (Bot API behind `TelegramApi`), `view/` (HTML, activity message, sending). |
+| `core/security/path-safety.ts` | `resolveInside` and `isSensitivePath`: keep file access inside a folder and away from secrets files. |
 
 ## How a message flows
 
@@ -131,6 +134,12 @@ The full definitions, with comments, are in `core/mode.ts`.
 | `YUVI_DEV` | off | `1` shows the example Echo mode |
 | `YUVI_CONTEXT_WINDOW`, `YUVI_TRIAGE`, `YUVI_SELF_REVIEW`, `SKILLS_DIRS` | | Agent mode, see `modes/agent/types.ts` |
 | `YUVI_CHAT_*` | | Chat mode limits, see `modes/chat/config.ts` |
+| `TELEGRAM_BOT_TOKEN` | none | Bot token from @BotFather. Needed for `yuvi telegram` |
+| `YUVI_TELEGRAM_USERS` | none | Comma-separated numeric Telegram user ids allowed to use the bot. Needed |
+| `YUVI_TELEGRAM_PIN` | none | PIN that unlocks the bot, at least 6 characters. Needed |
+| `YUVI_TELEGRAM_LOCK_MINUTES` | 15 | Lock again after this many minutes without a message |
+| `YUVI_TELEGRAM_WORKSPACE` | start folder | Project folder the bot works in |
+| `YUVI_TELEGRAM_PROJECTS` | none | `name=path;name=path`: folders offered by `/project` |
 
 ## Tests
 

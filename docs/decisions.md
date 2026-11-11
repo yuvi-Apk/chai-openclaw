@@ -52,3 +52,32 @@ needs a new dependency. Revisit together with a one-time reformat.
 
 **D14 · 2026-11 · The user makes all commits.**
 Claude never runs `git commit` or `git push` in this repo.
+
+**D15 · 2026-11 · Telegram is a second front end (`frontends/telegram/`), not a mode.**
+It implements `ModeHost`, so Agent, Plan and Chat run unchanged. No new
+dependency: the Bot API is called with `fetch` behind a `TelegramApi` interface
+(long polling, so the PC needs no public address).
+
+**D16 · 2026-11 · The Telegram bot is closed by default.**
+It refuses to start without an allowlist of user ids and a PIN. It serves
+private chats only, starts locked, locks again when idle, drops updates sent
+while it was off, and uses one-time buttons for approvals. An unanswered
+question counts as "no". Keys are never accepted in chat (`/key` is refused).
+
+**D17 · 2026-11 · The bot token sits in the Bot API URL path, because Telegram requires it.**
+This is the one exception to "no key in a URL". `FetchTelegramApi` never logs a
+URL and strips the token from every error. The token and PIN are in
+`Settings.secrets()` and `SECRET_ENV_NAMES`.
+
+**D18 · 2026-11 · Messages may carry images: `HandleOptions.images`, `Mode.acceptsImages`.**
+Both optional, so existing modes and the terminal are unchanged. A front end
+gives pictures only to a mode that sets the flag (Agent and Plan today).
+Pictures are left out of the saved agent session.
+
+**D19 · 2026-11 · `core/security/path-safety.ts` (`resolveInside`, `isSensitivePath`).**
+Guards Telegram file upload, `/file` and project switching; follows symbolic
+links. The agent's own path check should move to it (see progress.md).
+
+**D20 · 2026-11 · "Reject + tell yuvi what to do" runs the instruction as the next turn.**
+The agent ends its turn when all changes are refused, so a mid-turn correction
+would be dropped. The front end sends the instruction as a new message instead.

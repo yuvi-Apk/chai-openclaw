@@ -1,7 +1,7 @@
 import type { ModelMessage } from "ai";
 import type { Core } from "../../core/compose";
 import type { Settings } from "../../core/config";
-import type { ModeHost, TodoItem } from "../../core/mode";
+import type { ImageInput, ModeHost, TodoItem } from "../../core/mode";
 import type { ActionTracker } from "./action-tracker";
 import type { ToolExecutor } from "./tool-executor";
 import type { AgentOutput } from "./output";
@@ -140,6 +140,8 @@ export interface AgentSession {
     ui: AgentOutput;
     /** Receives a message the user typed while a turn is running. */
     onSteer?: (text: string) => void;
+    /** Pictures sent with the message of the turn that is starting. */
+    pendingImages?: ImageInput[] | undefined;
     messages: ModelMessage[];
     todos: TodoItem[];
     usage: UsageTotals;

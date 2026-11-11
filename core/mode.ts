@@ -159,10 +159,23 @@ export interface ModeStatus {
     tone: Tone;
 }
 
+/** A picture sent along with a message, e.g. a screenshot. */
+export interface ImageInput {
+    /** "image/jpeg", "image/png". */
+    mediaType: string;
+    data: Uint8Array;
+}
+
+export interface HandleOptions {
+    signal: AbortSignal;
+    /** Only given to modes that set `acceptsImages`. */
+    images?: ImageInput[];
+}
+
 /** One conversation with a mode. Sessions share nothing with each other. */
 export interface ModeSession {
     /** Handle one user message. Everything shown goes through host.emit. */
-    handle(input: string, options: { signal: AbortSignal }): Promise<void>;
+    handle(input: string, options: HandleOptions): Promise<void>;
     commands(): ModeCommand[];
     /** Shown when the session starts, and when the user asks for help. */
     welcome(): Line[];
@@ -192,6 +205,8 @@ export interface Mode {
     commandStyle?: "menu" | "typed";
     /** Text shown in an empty input box. */
     placeholder?: string;
+    /** The mode can look at pictures sent with a message. */
+    acceptsImages?: boolean;
     createSession(host: ModeHost): ModeSession;
 }
 
