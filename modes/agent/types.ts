@@ -1,7 +1,10 @@
 import type { ModelMessage } from "ai";
+import type { Core } from "../../core/compose";
+import type { Settings } from "../../core/config";
+import type { ModeHost, TodoItem } from "../../core/mode";
 import type { ActionTracker } from "./action-tracker";
 import type { ToolExecutor } from "./tool-executor";
-import type { AgentUI } from "./ui";
+import type { AgentOutput } from "./output";
 
 export type ActionType =
     | 'file_create'
@@ -47,6 +50,14 @@ export interface AgentConfig {
     checkCommands: string[];
     /** Approximate context window of the model, used to decide when to compact. */
     contextWindow: number;
+    /** Ask the fast model what kind of task a request is (otherwise keywords decide). */
+    modelTriage: boolean;
+    /** Have a reviewer sub-agent read the diff before the user sees it. */
+    selfReview: boolean;
+    /** Extra folders that hold SKILL.md files. */
+    skillDirs: string[];
+    /** The environment shell commands run with (API keys removed). */
+    commandEnv: Record<string, string | undefined>;
     tools: {
         allowShellExecution: boolean;
         allowFileModification: boolean;
@@ -55,8 +66,11 @@ export interface AgentConfig {
     };
 }
 
-export const defaultAgentConfig = (): AgentConfig => ({
-    codebasePath: process.cwd(),
+const DEFAULT_CONTEXT_WINDOW = 120_000;
+
+/** The agent's settings for one workspace. */
+export const loadAgentConfig = (settings: Settings, workspace: string): AgentConfig => ({
+    codebasePath: workspace,
     maxFileSizeToRead: 1024 * 1024,
     excludePatterns: [
         'node_modules',
@@ -70,7 +84,11 @@ export const defaultAgentConfig = (): AgentConfig => ({
     ],
     maxToolOutputChars: 12_000,
     checkCommands: [],
-    contextWindow: Number(process.env.YUVI_CONTEXT_WINDOW) || 120_000,
+    contextWindow: settings.number("YUVI_CONTEXT_WINDOW", DEFAULT_CONTEXT_WINDOW, 1000, 10_000_000),
+    modelTriage: !settings.isOff("YUVI_TRIAGE"),
+    selfReview: !settings.isOff("YUVI_SELF_REVIEW"),
+    skillDirs: settings.list("SKILLS_DIRS", ";"),
+    commandEnv: settings.childEnv(),
     tools: {
         allowShellExecution: true,
         allowFileModification: true,
@@ -89,10 +107,7 @@ export function isMutationType(t: ActionType): boolean {
     );
 }
 
-export interface TodoItem {
-    content: string;
-    status: 'pending' | 'in_progress' | 'completed';
-}
+export type { TodoItem };
 
 export interface UsageTotals {
     inputTokens: number;
@@ -113,11 +128,18 @@ export interface CheckpointResult {
 
 /** Everything one agent session shares between the brain, the tools and the UI. */
 export interface AgentSession {
+    /** Shared services: settings, models, the text model client. */
+    core: Core;
+    /** The front end: where events go and questions are asked. */
+    host: ModeHost;
     config: AgentConfig;
     mode: AgentMode;
     tracker: ActionTracker;
     executor: ToolExecutor;
-    ui: AgentUI;
+    /** Reports what the agent does, as mode events. */
+    ui: AgentOutput;
+    /** Receives a message the user typed while a turn is running. */
+    onSteer?: (text: string) => void;
     messages: ModelMessage[];
     todos: TodoItem[];
     usage: UsageTotals;

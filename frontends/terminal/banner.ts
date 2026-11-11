@@ -5,7 +5,8 @@ import { intro, outro, select, isCancel, cancel } from "@clack/prompts";
 const BANNER_FONT = "ANSI Shadow";
 const BANNER_TEXT = "YUVI";
 
-export type Mode = "cli" | "telegram";
+/** Where the user talks to yuvi from. */
+export type Channel = "cli" | "telegram";
 
 /** Draws the big ASCII banner with a top-to-bottom colour gradient. */
 
@@ -23,10 +24,10 @@ export function showBanner(): void {
 }
 
 /** Asks the user which mode to start in. Returns null if they cancel (Ctrl+C / Esc). */
-export async function pickMode(): Promise<Mode | null> {
+export async function pickMode(): Promise<Channel | null> {
     intro(chalk.bgCyan.black(" yuvi is awake "));
 
-    const mode = await select<Mode>({
+    const mode = await select<Channel>({
         message: "How do you want to talk to yuvi?",
         options: [
             { value: "cli", label: "CLI", hint: "chat right here in the terminal" },
@@ -44,7 +45,7 @@ export async function pickMode(): Promise<Mode | null> {
 }
 
 /** The full wakeup flow: banner, then mode picker. */
-export async function wakeup(): Promise<Mode | null> {
+export async function wakeup(): Promise<Channel | null> {
     showBanner();
     return pickMode();
 }

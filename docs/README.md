@@ -73,6 +73,9 @@ In menus, use the **arrow keys** and **Enter**. Press **Ctrl+C** or **Esc** to c
 - [files/terminal-ui/terminal-md.ts.md](files/terminal-ui/terminal-md.ts.md): renders Markdown (like AI replies) as coloured terminal text.
 - [files/modes/cli.ts.md](files/modes/cli.ts.md): CLI mode's menu loop (Agent, Plan, Chat, Help, Exit).
 - [files/modes/agent/orchestrator.ts.md](files/modes/agent/orchestrator.ts.md): the conductor of agent mode. Asks, builds the agent, runs it, then approves and applies.
+- [files/modes/agent/input.ts.md](files/modes/agent/input.ts.md): the message box. Raw-key input with history, Shift+Tab mode switch, `/` menu, and an `@` file picker.
+- [files/modes/agent/brain.ts.md](files/modes/agent/brain.ts.md): the thinking part. Runs one full turn: plan, work, review, approve, check, repair.
+- [files/modes/agent/ui.ts.md](files/modes/agent/ui.ts.md): the screen manager. Spinner, tool lines, answers, notes, and friendly errors.
 - [files/modes/agent/agent-tools.ts.md](files/modes/agent/agent-tools.ts.md): the AI's toolbox. Each tool's description and Zod input schema.
 - [files/modes/agent/tool-executor.ts.md](files/modes/agent/tool-executor.ts.md): the real work behind each tool, plus safety guards, staging, and the apply step.
 - [files/modes/agent/action-tracker.ts.md](files/modes/agent/action-tracker.ts.md): the action log. Records everything the agent did or wants to do.
@@ -85,9 +88,16 @@ In menus, use the **arrow keys** and **Enter**. Press **Ctrl+C** or **Esc** to c
 - [files/tsconfig.json.md](files/tsconfig.json.md): tells TypeScript how strict to be and which features to allow.
 - [files/cspell.json.md](files/cspell.json.md): spell-checker settings and the project's custom word list.
 - [files/README.md.md](files/README.md.md): the root README. The project's front page with features, quick start, tools, and configuration.
+- [files/CLAUDE.md.md](files/CLAUDE.md.md): the briefing for AI coding assistants. Commands, folder map, the ten architecture rules, and the workflow.
 - [files/.gitignore.md](files/.gitignore.md): files Git should never track (like `node_modules` and `.env`).
 - [files/.prettierrc.md](files/.prettierrc.md): Prettier formatting rules (quotes, semicolons, indent).
 - [files/.prettierignore.md](files/.prettierignore.md): files Prettier should skip.
+
+### Project guides
+- [ARCHITECTURE.md](ARCHITECTURE.md): the big-picture overview and how a message flows through the layers.
+- [adding-a-mode.md](adding-a-mode.md): a worked example of adding a new mode, with code.
+- [decisions.md](decisions.md): the log of architecture decisions and why they were made.
+- [progress.md](progress.md): current status and next steps.
 
 ### Concepts (reusable ideas)
 - [concepts/bun-runtime.md](concepts/bun-runtime.md): what Bun is and why it runs TypeScript directly.

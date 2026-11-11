@@ -1,14 +1,17 @@
 # modes/agent/input.ts
 
-**Purpose:** The **message box** of agent mode. It draws a framed input line with a hint bar under it, reads your keys one at a time, and reports back what you want: send a message, open the menu, or leave.
+**Purpose:** The **message box** of agent mode. It draws a framed input line with a hint bar under it, reads your keys one at a time, and reports back what you want: send a message, open the menu, or leave. When you type `@`, it also pops up a small list of project files you can pick from.
 
-**Where it fits:** [orchestrator.ts](orchestrator.ts.md) calls `readInput()` at the top of its main loop and gives it the hint-bar text and the "switch mode" action. This file knows nothing about modes or the AI. It only knows about keys and drawing. Concept: [raw-mode-and-ansi-escapes.md](../../../concepts/raw-mode-and-ansi-escapes.md).
+**Where it fits:** [orchestrator.ts](orchestrator.ts.md) calls `readInput()` at the top of its main loop and gives it the hint-bar text, the "switch mode" action, and a function that lists the project's files (from [tool-executor.ts](tool-executor.ts.md)'s `listTextFiles`). This file knows nothing about modes or the AI. It only knows about keys and drawing. Concept: [raw-mode-and-ansi-escapes.md](../../../concepts/raw-mode-and-ansi-escapes.md).
 
 ```
 ────────────────────────────────────────────
-› type here
+› explain @orch
 ────────────────────────────────────────────
   ● Ask mode · shift+tab switch mode · / menu
+› modes/agent/orchestrator.ts
+  docs/files/modes/agent/orchestrator.ts.md
+  ↑↓ choose · tab/enter select · esc close
 ```
 
 ---
@@ -41,14 +44,131 @@ export interface InputOptions {
     /** Earlier messages, oldest first, for the Up / Down keys. */
     history: string[];
     placeholder: string;
+    /** Workspace files (relative, "/" separated) offered after typing "@". */
+    files?: () => string[];
 }
 ```
 
-**What it does:** It lists four things the box needs: a function that returns the hint-bar text for a given width, a function to call on Shift+Tab, the list of earlier messages, and the grey placeholder text.
+**What it does:** It lists what the box needs: a function that returns the hint-bar text for a given width, a function to call on Shift+Tab, the list of earlier messages, the grey placeholder text, and (optionally) a function that returns the project's file paths.
 
-**Why it's used in general:** Passing functions in (callbacks) keeps a component reusable. It does its own job and asks the caller for anything it doesn't know.
+**Why it's used in general:** Passing functions in (callbacks) keeps a component reusable. It does its own job and asks the caller for anything it doesn't know. The `?` in `files?` makes the field **optional**: a caller may leave it out (see [typescript-interfaces-and-utility-types.md](../../../concepts/typescript-interfaces-and-utility-types.md)).
 
-**Why it's used here:** The box doesn't know what "Ask mode" is. It just calls `onCycleMode()` and then asks `footer()` for the new text.
+**Why it's used here:** The box doesn't know what "Ask mode" is. It just calls `onCycleMode()` and then asks `footer()` for the new text. In the same way, it doesn't know how to find files. It just calls `files()` when it needs them. If `files` is missing, the `@` list simply never appears.
+
+💡 **Tip:** `files` is a *function*, not an array. Walking the whole project takes time, so the box only calls it the first time you actually type `@`.
+
+---
+
+### `mentionAtEnd(buffer)`: spotting an `@` being typed
+
+```ts
+function mentionAtEnd(buffer: string): { start: number; query: string } | null {
+    const m = /(?:^|\s)@([^\s@]*)$/.exec(buffer);
+    if (!m) return null;
+    return { start: buffer.length - m[1]!.length, query: m[1]! };
+}
+```
+
+**What it does:** It checks whether the line **ends** with an `@word` that you are still typing.
+- `(?:^|\s)@` means: an `@` at the very start, or right after a space. So an email like `me@site.com` does not count.
+- `([^\s@]*)` captures the letters after the `@` (no spaces, no second `@`). This is the **query**.
+- `$` means "at the end of the line".
+- It returns the query and `start`, the position where the query begins, so it can be replaced later. No match → `null`.
+
+**Why it's used in general:** A **regular expression** is a small pattern language for finding text. `exec` returns the match and its captured groups, or `null`.
+
+**Why it's used here:** The list should only show while you are in the middle of an `@mention`. Once you type a space after it, the pattern stops matching and the list closes by itself.
+
+---
+
+### `rankPaths(paths, query)`: best matches first
+
+```ts
+if (lower.startsWith(q)) score = 0;
+else if (base.startsWith(q)) score = 1;
+else if (base.includes(q)) score = 2;
+else if (lower.includes(q)) score = 3;
+else {
+    // Letters in order, e.g. "orch" → modes/agent/orchestrator.ts
+    let i = 0;
+    for (const ch of lower) if (ch === q[i]) i++;
+    if (i < q.length) continue;
+    score = 4;
+}
+```
+
+**What it does:** Each path gets a score. Lower is better:
+
+| Score | Rule | Example query → path |
+|---|---|---|
+| 0 | the whole path starts with it | `modes/a` → `modes/agent/` |
+| 1 | the file or folder name starts with it | `orch` → `modes/agent/orchestrator.ts` |
+| 2 | the name contains it | `strat` → `orchestrator.ts` |
+| 3 | the full path contains it | `agent/or` → `modes/agent/orchestrator.ts` |
+| 4 | its letters appear in order | `mao` → `modes/agent/orchestrator.ts` |
+
+Paths that don't match at all are skipped (`continue`). The rest are sorted by score, then shorter paths first, then A–Z, and only the top 8 (`MAX_SUGGESTIONS`) are kept. If nothing is typed after `@` yet, it shows the **shallowest** paths first, so the list starts at the top level of the project.
+
+The query is lower-cased and any `\` becomes `/`, so Windows-style typing still matches.
+
+**Why it's used in general:** This is a tiny **fuzzy finder**, the same idea as "Go to file" in VS Code. Score 4 is the classic "subsequence" match: walk through the path and tick off the query letters one by one.
+
+**Why it's used here:** You rarely remember a full path. Typing a few letters of the file name should be enough to find it.
+
+---
+
+### `loadPaths()`: files plus their folders
+
+```ts
+const loadPaths = (): string[] => {
+    if (allPaths) return allPaths;
+    const files = options.files?.() ?? [];
+    const dirs = new Set<string>();
+    for (const f of files) {
+        const parts = f.split("/");
+        for (let i = 1; i < parts.length; i++) dirs.add(parts.slice(0, i).join("/") + "/");
+    }
+    allPaths = [...dirs, ...files];
+    return allPaths;
+};
+```
+
+**What it does:**
+- The first call asks the caller for the file list. Later calls return the saved `allPaths`. This saving trick is called **caching**.
+- For a file like `modes/agent/ui.ts`, it also adds the folders `modes/` and `modes/agent/`. A `Set` makes sure each folder is added only once.
+- Folders always end with `/`, which is how the rest of the code tells them apart from files.
+
+**Why it's used in general:** `options.files?.()` uses **optional chaining**: "call `files` if it exists, otherwise give `undefined`". `?? []` then falls back to an empty list.
+
+**Why it's used here:** Picking a folder is useful too ("look at `@modes/agent/`"), but the file walker only returns files. So the folders are worked out from the file paths.
+
+---
+
+### `updateSuggestions()` and `acceptSuggestion()`: the list's state
+
+```ts
+let suggestions: string[] = [];
+let selected = 0;
+let dismissedAt: string | null = null; // buffer value when Esc hid the list
+
+const acceptSuggestion = () => {
+    const mention = mentionAtEnd(buffer);
+    const choice = suggestions[selected];
+    if (!mention || !choice) return;
+    // A folder keeps the list open so you can go on into it.
+    buffer = buffer.slice(0, mention.start) + choice + (choice.endsWith("/") ? "" : " ");
+};
+```
+
+**What it does:**
+- `suggestions` is the list on screen and `selected` is the highlighted row.
+- `updateSuggestions()` runs before every redraw. If there is no `@mention` at the end, the list is empty. Otherwise it ranks the paths for the current query. When the list's contents change, the highlight jumps back to the top row.
+- `dismissedAt` remembers the exact line you had when you pressed Esc. As long as the line is still exactly that, the list stays hidden. Type one more letter and it can come back.
+- `acceptSuggestion()` swaps the half-typed query for the chosen path. A **file** gets a space after it, which ends the mention and closes the list. A **folder** gets no space, so the list stays open and now shows what is inside that folder (score 0: paths that start with it).
+
+**Why it's used in general:** Keeping a few small variables for "what is shown" and "what is highlighted" is how every dropdown or autocomplete works under the hood.
+
+**Why it's used here:** Clicking down through folders, one `Tab` at a time, feels like browsing. The space after a file means you can carry on typing your sentence straight away.
 
 ---
 
@@ -100,7 +220,7 @@ return new Promise((resolve) => {
 
 ---
 
-### Drawing: `drawInput`, `drawFooter`, `drawAll`
+### Drawing: `drawInput`, `redraw`, `drawAll`
 
 ```ts
 const drawInput = () => {
@@ -125,24 +245,35 @@ const drawInput = () => {
 The other two helpers:
 
 ```ts
-const drawFooter = () => {
-    out.write(`\x1b[2B\r\x1b[2K${options.footer(width())}\x1b[2A`);
+const redraw = () => {
+    updateSuggestions();
+    let s = `\x1b[2B\r\x1b[2K${options.footer(w)}`;
+    // rows = the suggestion lines (highlighted one in cyan), maybe
+    // "no matching files", then the "↑↓ choose · ..." hint
+    for (const row of rows) s += `\n\x1b[2K${row}`;
+    s += "\x1b[J"; // wipe rows left over from a longer list
+    s += `\x1b[${2 + rows.length}A`;
+    out.write(s);
     drawInput();
 };
 
 const drawAll = () => {
     out.write(`\n${rule()}\n\n${rule()}\n${options.footer(width())}`);
     out.write("\x1b[2A");
-    drawInput();
+    redraw();
 };
 ```
 
-- `drawAll` draws the whole box once: a rule, an empty line for input, a rule, the hint bar. Then `\x1b[2A` moves the cursor **up 2 lines**, back onto the input line.
-- `drawFooter` goes **down 2** (`\x1b[2B`) to the hint bar, erases and rewrites it, and comes back **up 2**.
+- `drawAll` draws the whole box once: a rule, an empty line for input, a rule, the hint bar. Then `\x1b[2A` moves the cursor **up 2 lines**, back onto the input line, and calls `redraw`.
+- `redraw` runs after every key. It refreshes the suggestions, goes **down 2** (`\x1b[2B`) to the hint bar and rewrites it, then writes one line per suggestion under it. Long paths are cut from the front with `…`, so you still see the file name.
+- `\x1b[J` erases everything below. If the list just got shorter, old rows don't stay behind on screen.
+- Finally it goes **up** by `2 + rows.length` lines, back to the input line, and repaints it.
 
 **Why it's used in general:** These strange strings are **ANSI escape codes**: commands for the terminal, not text. They are how every spinner, progress bar, and full-screen terminal app moves the cursor. See [raw-mode-and-ansi-escapes.md](../../../concepts/raw-mode-and-ansi-escapes.md).
 
-**Why it's used here:** Only the line that changed is redrawn. After each key the input line is repainted in place, so the box never flickers or scrolls.
+**Why it's used here:** The box is repainted in place, so it never flickers. Building the whole update in one string `s` and writing it once keeps it smooth too.
+
+💡 **Tip:** The suggestion rows use `\n`, not "cursor down" (`\x1b[1B`). Cursor-down stops at the bottom edge of the screen. `\n` makes the terminal **scroll**, so the list still has room when the box sits on the last line.
 
 ---
 
@@ -184,7 +315,7 @@ if (key === "\u0003") {
     // Ctrl+C: first clears what was typed, then leaves.
     if (buffer) {
         buffer = "";
-        drawInput();
+        redraw();
     } else {
         close({ kind: "exit" });
     }
@@ -193,7 +324,7 @@ if (key === "\u0003") {
 if (key === "\u0004") return close({ kind: "exit" });
 if (key === "\u001b[Z") {
     options.onCycleMode();
-    drawFooter();
+    redraw();
     return;
 }
 ```
@@ -212,13 +343,47 @@ if (key === "\u001b[Z") {
 | `\u0015` | Ctrl+U | clears the line |
 | `\u0017` | Ctrl+W | deletes the last word |
 
-Any other sequence that starts with `\u001b` (other arrows, function keys) is ignored.
+Any other sequence that starts with `\u001b` (other arrows, function keys) is ignored. While the `@` file list is open, Up / Down, Tab, Enter and Esc mean something different (next section). Every key that changes the line ends with `redraw()`, so the file list always follows what you typed.
 
 **Why it's used in general:** Normally the terminal handles these keys for you. In raw mode your program receives them and must give each one its meaning.
 
 **Why it's used here:** Shift+Tab and Up / Down are impossible with an ordinary line prompt. Reading raw keys is what makes them work.
 
 💡 **Tip:** Ctrl+C in raw mode does **not** stop the program by itself. It is just the character `\u0003`. That is why this code handles it explicitly.
+
+---
+
+### `onData(chunk)`: driving the `@` file list
+
+```ts
+if (suggestions.length) {
+    if (key === "\u001b[A" || key === "\u001b[B") {
+        const n = suggestions.length;
+        selected = (selected + (key === "\u001b[A" ? n - 1 : 1)) % n;
+        redraw();
+        return;
+    }
+    if (key === "\t" || key === "\r" || key === "\n") {
+        acceptSuggestion();
+        redraw();
+        return;
+    }
+    if (key === "\u001b") {
+        dismissedAt = buffer;
+        redraw();
+        return;
+    }
+}
+```
+
+**What it does:** This block only runs while the list has rows.
+- **Up / Down** move the highlight. `% n` wraps around: Down on the last row goes to the first. Up adds `n - 1` instead of subtracting 1, which is the same move but never makes the number negative.
+- **Tab** or **Enter** puts the highlighted path into your line.
+- **Esc** hides the list (by remembering the line in `dismissedAt`) but keeps your text.
+
+**Why it's used in general:** The same key can mean different things depending on what is on screen. Checking the "list is open" state **first** gives the list priority, just like a dropdown in a browser.
+
+**Why it's used here:** Without this, Enter would send a half-typed `@orch` to the AI, and Up would jump to an old message instead of moving through the files.
 
 ---
 
@@ -234,7 +399,8 @@ if (key === "\u001b[A" || key === "\u001b[B") {
         historyIndex === options.history.length
             ? draft
             : (options.history[historyIndex] ?? "");
-    drawInput();
+    dismissedAt = buffer; // don't pop the file list up over a recalled message
+    redraw();
     return;
 }
 ```
@@ -245,6 +411,7 @@ if (key === "\u001b[A" || key === "\u001b[B") {
 - Up moves the index back by one, Down moves it forward by one.
 - `Math.max(0, Math.min(length, index))` **clamps** the index, so it can never go below the oldest message or beyond the new line.
 - At the end position you get your `draft` back. Anywhere else you get that old message.
+- `dismissedAt = buffer` keeps the file list closed. An old message that ends in `@something` would otherwise open the list and "steal" the next Up key.
 
 **Why it's used in general:** This is exactly how shell history works in bash or PowerShell. Clamping with `Math.max` / `Math.min` is the standard way to keep a number inside a range.
 
@@ -263,7 +430,7 @@ if (!buffer && key === "?") return close({ kind: "message", text: "/help" });
 const typed = key.replace(/\r?\n|\r/g, " ").replace(/[\u0000-\u001f]/g, "");
 if (typed) {
     buffer += typed;
-    drawInput();
+    redraw();
 }
 ```
 
@@ -298,6 +465,7 @@ drawAll();
 ### 🧠 Key takeaways
 - `readInput` returns a Promise that resolves to one of three results: message, menu, or exit.
 - Raw mode delivers every key to the program, which makes Shift+Tab, history, and instant `/` possible.
-- ANSI escape codes move the cursor, so only the changed line is redrawn.
-- The caller supplies the hint bar and the mode switch through callbacks, so this file stays generic.
+- ANSI escape codes move the cursor, so the box and its file list are repainted in place.
+- Typing `@` opens a fuzzy file finder; while it is open, arrows / Tab / Enter / Esc drive the list first.
+- The caller supplies the hint bar, the mode switch, and the file list through callbacks, so this file stays generic.
 - Always undo raw mode when done, and have a plain fallback when there is no real terminal.
