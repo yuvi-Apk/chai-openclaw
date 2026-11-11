@@ -1,6 +1,7 @@
 export {
     applyUserSettings,
     getAgentModel,
+    getModelById,
     getModelId,
     getReasoningOverride,
     readUserSettings,

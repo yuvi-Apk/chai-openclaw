@@ -1,26 +1,10 @@
 import chalk from "chalk";
 
-import { select, text, isCancel, log, outro } from "@clack/prompts";
+import { select, isCancel, log, outro } from "@clack/prompts";
 import { runAgentMode } from "./agent/orchestrator";
+import { runChatMode } from "./chat/terminal";
 
 type CliAction = "agent" | "plan" | "chat" | "help" | "exit";
-
-/** Asks for one message and replies. Returns false if the user cancels. */
-async function chatOnce(): Promise<boolean> {
-    const message = await text({
-        message: "You:",
-        placeholder: "type something to yuvi...",
-        validate: (value) => (!value || !value.trim() ? "Say something first!" : undefined),
-    });
-
-    if(message == "exit")return false;
-
-    if (isCancel(message)) return false;
-
-    // TODO: replace this echo with a real AI reply once the brain is wired in
-    log.message(chalk.cyan(`yuvi: you said "${message.trim()}"`));
-    return true;
-}
 
 function showHelp(): void {
     log.info(
@@ -28,7 +12,7 @@ function showHelp(): void {
             chalk.bold("CLI mode commands"),
             `${chalk.cyan("Agent")}  - Agent`,
             `${chalk.cyan("plan")}  - Plan mode`,
-            `${chalk.cyan("Chat")}  - send a message to yuvi`,
+            `${chalk.cyan("Chat")}  - ask questions; yuvi searches the web when it needs fresh facts`,
             `${chalk.cyan("Help")}  - show this help`,
             `${chalk.cyan("Exit")}  - leave CLI mode (Ctrl+C / Esc also works)`,
         ].join("\n"),
@@ -44,7 +28,7 @@ export async function runCliMode(): Promise<void> {
                 { value: "agent", label: "Agent", hint: "Run an agent" },
                 { value: "plan", label: "Plan", hint: "read-only: explore and plan, change nothing" },
 
-                { value: "chat", label: "Chat", hint: "talk to yuvi" },
+                { value: "chat", label: "Chat", hint: "ask questions, with web search when needed" },
 
                 { value: "help", label: "Help", hint: "see what you can do" },
                 { value: "exit", label: "Exit", hint: "go back to sleep" },
@@ -71,8 +55,8 @@ export async function runCliMode(): Promise<void> {
             continue;
         }
 
-        // Chat: keep chatting until the user cancels, then return to the menu
-        while (await chatOnce()) { }
+        // Chat: questions and answers, with a web search when it is needed.
+        await runChatMode();
         log.step(chalk.gray("Back to the menu."));
     }
 

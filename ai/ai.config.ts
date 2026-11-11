@@ -72,6 +72,14 @@ export function getAgentModel(role: ModelRole = 'main') {
     return provider(getModelId(role));
 }
 
+/** A model by its exact id, for callers (chat mode) that choose the id themselves. */
+export function getModelById(id: string) {
+    const provider = createOpenRouter({
+        apiKey: process.env.OPENROUTER_API_KEY || "",
+    });
+    return provider(id);
+}
+
 /**
  * Reasoning effort from YUVI_REASONING. "off" disables the setting completely
  * (use it for models that reject a reasoning option). Returns undefined when

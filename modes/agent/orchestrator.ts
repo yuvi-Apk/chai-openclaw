@@ -147,7 +147,7 @@ function attachMentions(session: AgentSession, message: string): string {
 }
 
 /** Ask for an OpenRouter key and save it for this user. Returns false when skipped. */
-async function setupApiKey(): Promise<boolean> {
+export async function setupApiKey(): Promise<boolean> {
     log.info(
         [
             chalk.bold("yuvi needs an OpenRouter key to talk to an AI model."),

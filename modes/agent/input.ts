@@ -16,6 +16,19 @@ export interface InputOptions {
     placeholder: string;
     /** Workspace files (relative, "/" separated) offered after typing "@". */
     files?: () => string[];
+    /**
+     * Typed "/" commands, offered as a list while typing. When set, "/" is
+     * typed like any other letter instead of opening the menu.
+     */
+    commands?: InputCommand[];
+}
+
+export interface InputCommand {
+    /** With the slash, e.g. "/new". */
+    name: string;
+    hint: string;
+    /** The command is followed by text, so choosing it does not send it yet. */
+    takesArg?: boolean;
 }
 
 const PROMPT = "› ";
@@ -111,7 +124,19 @@ export function readInput(options: InputOptions): Promise<InputResult> {
             return allPaths;
         };
 
+        /** True while a "/command" is being typed and nothing follows it yet. */
+        const typingCommand = () => Boolean(options.commands) && /^\/\S*$/.test(buffer);
+
         const updateSuggestions = () => {
+            if (typingCommand() && dismissedAt !== buffer) {
+                dismissedAt = null;
+                const next = options
+                    .commands!.filter((c) => c.name.startsWith(buffer.toLowerCase()))
+                    .map((c) => c.name);
+                if (next.join("\n") !== suggestions.join("\n")) selected = 0;
+                suggestions = next;
+                return;
+            }
             const mention = options.files ? mentionAtEnd(buffer) : null;
             if (!mention || dismissedAt === buffer) {
                 suggestions = [];
@@ -124,13 +149,23 @@ export function readInput(options: InputOptions): Promise<InputResult> {
             suggestions = next;
         };
 
-        /** Put the chosen path in place of the "@query" being typed. */
-        const acceptSuggestion = () => {
-            const mention = mentionAtEnd(buffer);
+        /**
+         * Put the chosen suggestion in the input line. Returns true when the
+         * line is complete and should be sent (a command that takes no text).
+         */
+        const acceptSuggestion = (): boolean => {
             const choice = suggestions[selected];
-            if (!mention || !choice) return;
+            if (!choice) return false;
+            if (typingCommand()) {
+                const command = options.commands!.find((c) => c.name === choice);
+                buffer = command?.takesArg ? `${choice} ` : choice;
+                return !command?.takesArg;
+            }
+            const mention = mentionAtEnd(buffer);
+            if (!mention) return false;
             // A folder keeps the list open so you can go on into it.
             buffer = buffer.slice(0, mention.start) + choice + (choice.endsWith("/") ? "" : " ");
+            return false;
         };
 
         /** Redraw only the input line; the cursor stays at the end of the text. */
@@ -154,8 +189,13 @@ export function readInput(options: InputOptions): Promise<InputResult> {
             const w = width();
             let s = `\x1b[2B\r\x1b[2K${options.footer(w)}`;
             const mention = options.files ? mentionAtEnd(buffer) : null;
+            const commandMode = typingCommand();
             const rows: string[] = suggestions.map((p, i) => {
-                const label = p.length > w - 4 ? "…" + p.slice(p.length - (w - 5)) : p;
+                let label = p.length > w - 4 ? "…" + p.slice(p.length - (w - 5)) : p;
+                if (commandMode) {
+                    const hint = options.commands!.find((c) => c.name === p)?.hint ?? "";
+                    label = `${p.padEnd(10)} ${hint}`.slice(0, w - 4);
+                }
                 return i === selected ? chalk.cyan(`› ${label}`) : chalk.dim(`  ${label}`);
             });
             if (mention && !suggestions.length && dismissedAt !== buffer) {
@@ -221,7 +261,9 @@ export function readInput(options: InputOptions): Promise<InputResult> {
                     return;
                 }
                 if (key === "\t" || key === "\r" || key === "\n") {
-                    acceptSuggestion();
+                    const complete = acceptSuggestion();
+                    // Enter on a command that needs no text sends it right away.
+                    if (complete && key !== "\t") return close({ kind: "message", text: buffer.trim() });
                     redraw();
                     return;
                 }
@@ -274,7 +316,7 @@ export function readInput(options: InputOptions): Promise<InputResult> {
             }
 
             // "/" on an empty line opens the menu; "?" shows help.
-            if (!buffer && key === "/") return close({ kind: "menu" });
+            if (!buffer && key === "/" && !options.commands) return close({ kind: "menu" });
             if (!buffer && key === "?") return close({ kind: "message", text: "/help" });
 
             // Normal typing or a paste (line breaks in a paste become spaces).
