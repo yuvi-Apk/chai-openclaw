@@ -73,6 +73,9 @@ In menus, use the **arrow keys** and **Enter**. Press **Ctrl+C** or **Esc** to c
 - [files/terminal-ui/terminal-md.ts.md](files/terminal-ui/terminal-md.ts.md): renders Markdown (like AI replies) as coloured terminal text.
 - [files/modes/cli.ts.md](files/modes/cli.ts.md): CLI mode's menu loop (Agent, Plan, Chat, Help, Exit).
 - [files/modes/agent/orchestrator.ts.md](files/modes/agent/orchestrator.ts.md): the conductor of agent mode. Asks, builds the agent, runs it, then approves and applies.
+- [files/modes/agent/input.ts.md](files/modes/agent/input.ts.md): the message box. Raw-key input with history, Shift+Tab mode switch, `/` menu, and an `@` file picker.
+- [files/modes/agent/brain.ts.md](files/modes/agent/brain.ts.md): the thinking part. Runs one full turn: plan, work, review, approve, check, repair.
+- [files/modes/agent/ui.ts.md](files/modes/agent/ui.ts.md): the screen manager. Spinner, tool lines, answers, notes, and friendly errors.
 - [files/modes/agent/agent-tools.ts.md](files/modes/agent/agent-tools.ts.md): the AI's toolbox. Each tool's description and Zod input schema.
 - [files/modes/agent/tool-executor.ts.md](files/modes/agent/tool-executor.ts.md): the real work behind each tool, plus safety guards, staging, and the apply step.
 - [files/modes/agent/action-tracker.ts.md](files/modes/agent/action-tracker.ts.md): the action log. Records everything the agent did or wants to do.

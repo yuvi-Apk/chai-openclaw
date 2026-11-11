@@ -350,6 +350,7 @@ while (true) {
             session.mode = MODES[(MODES.indexOf(session.mode) + 1) % MODES.length]!;
         },
         history,
+        files: () => executor.listTextFiles("."),
         placeholder: "Type your message, then press Enter",
     });
 
@@ -369,7 +370,8 @@ while (true) {
 ```
 
 **What it does:**
-- `readInput` from [input.ts](input.ts.md) shows the message box. It receives two **callbacks**: `footer`, which it calls to draw the hint bar, and `onCycleMode`, which it calls when you press Shift+Tab.
+- `readInput` from [input.ts](input.ts.md) shows the message box. It receives three **callbacks**: `footer`, which it calls to draw the hint bar, `onCycleMode`, which it calls when you press Shift+Tab, and `files`, which it calls the first time you type `@` to get the list of project files to suggest.
+- `files` reuses `executor.listTextFiles(".")` from [tool-executor.ts](tool-executor.ts.md). That is the same walker the AI's tools use, so the suggestions skip excluded folders (like `node_modules`) and binary files, and include files the agent has staged but not written yet.
 - `(index + 1) % MODES.length` moves to the next mode and wraps around to the first after the last. `%` is the remainder operator.
 - The result has a `kind`: `"exit"` leaves the loop, `"menu"` opens the menu, and `"message"` carries your text.
 - A real message is remembered in `history` (for the Up / Down keys), gets its `@file` mentions attached, and goes to `runTurn` in [brain.ts](brain.ts.md).

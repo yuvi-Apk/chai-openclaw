@@ -347,6 +347,7 @@ export async function runAgentMode(options: { mode?: AgentMode } = {}) {
                 session.mode = MODES[(MODES.indexOf(session.mode) + 1) % MODES.length]!;
             },
             history,
+            files: () => executor.listTextFiles("."),
             placeholder: "Type your message, then press Enter",
         });
 

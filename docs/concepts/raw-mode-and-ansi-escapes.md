@@ -68,7 +68,7 @@ Colours work the same way. Libraries like [chalk](chalk-terminal-colors.md) just
 
 ## Where this project uses it
 
-- [modes/agent/input.ts](../files/modes/agent/input.ts.md): the message box. Raw mode gives it Shift+Tab, history with Up / Down, and an instant `/` menu. Escape codes redraw only the input line or the hint bar.
+- [modes/agent/input.ts](../files/modes/agent/input.ts.md): the message box. Raw mode gives it Shift+Tab, history with Up / Down, an instant `/` menu, and an `@` file list you drive with the arrow keys. Escape codes repaint the input line, the hint bar, and the list under it in place.
 - [modes/agent/ui.ts](../files/modes/agent/ui.ts.md): the spinner line that is erased and redrawn, and the key listener that lets you press Esc or type a correction while the agent works.
 
 ## 🧠 Key takeaways
