@@ -33,7 +33,7 @@ export const LLM_PROVIDERS: LLMProviderRegistry = {
 
 **Why it's used here:** All four adapters speak the same AI SDK language, so the rest of yuvi doesn't care which one is in use. `settings.apiKey` already returns the right key for the active provider, so the four lines look almost the same.
 
-💡 **Tip:** The adapter is created inside the inner function, on every call. That's why a key you paste with "Set API key" works straight away, without a restart.
+💡 **Tip:** The adapter is created inside the inner function, on every call. That's why a key you paste with "Log in / change key" works straight away, without a restart.
 
 ---
 

@@ -253,7 +253,7 @@ export class ChatController {
 
     async refuseKey(): Promise<void> {
         await this.messenger.send(
-            "🔑 Keys are never set from Telegram: a key typed here would stay in the chat history. Set it on your PC (run yuvi in the terminal and choose “Set API key”).",
+            "🔑 Keys are never set from Telegram: a key typed here would stay in the chat history. Log in on your PC: run yuvi wakeup in the terminal and choose “Log in”.",
         );
     }
 

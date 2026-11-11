@@ -14,7 +14,7 @@ function wordingFor(provider: LLMProviderProfile): Wording {
     return {
         auth_rejected: {
             problem: `${label} did not accept your API key.`,
-            fix: `Type / and choose “Set API key” and paste a fresh key from ${keysUrl}`,
+            fix: `Type / and choose “Log in / change key” and paste a fresh key from ${keysUrl}`,
         },
         no_credits: {
             problem: `Your ${label} account has no credits left for this model.`,
@@ -26,7 +26,7 @@ function wordingFor(provider: LLMProviderProfile): Wording {
 ```
 
 **What it does:** Builds a table with one `{ problem, fix }` pair for every `ErrorKind`. `const { label, keysUrl, ... } = provider` is **destructuring**: it pulls those fields out into local variables. Template strings (`` `...${label}...` ``) then put the provider's name and links into the text.
-- Key, credits and model messages name the provider and link to its pages.
+- Key, credits and model messages name the provider and link to its pages. The two key messages send you to “Log in / change key”, the `/login` command from [login.ts](login.ts.md).
 - General messages (network, timeout, rate limit, context too long) are the same for every provider.
 
 **Why it's used in general:** Keeping user-facing text in one table makes it easy to read, change and later translate.

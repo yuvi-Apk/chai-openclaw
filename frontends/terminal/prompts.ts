@@ -1,17 +1,14 @@
 /**
  * The questions the terminal asks the user: accept changes, allow a
- * command, pick an option, type an answer, and set the key or the model.
+ * command, pick an option, type an answer. Logging in is in login.ts.
  */
-import { isCancel, log, password, select, text } from "@clack/prompts";
+import { isCancel, select, text } from "@clack/prompts";
 import chalk from "chalk";
-import type { Settings } from "../../core/config";
-import { profileFor } from "../../core/llm/profiles";
 import type { ChangeGroup, Choice, ConfirmReply, ConfirmRequest } from "../../core/mode";
 import { colorizeDiff } from "./style";
 
 const PREVIEW_DIFF_LINES = 60;
 const FULL_DIFF_LINES = 2000;
-const MIN_KEY_LENGTH = 20;
 
 /** Print every staged change with its diff, so the user decides on what they can see. */
 function printStaged(groups: ChangeGroup[]): void {
@@ -119,27 +116,4 @@ export async function chooseOne<T extends string>(
 export async function askText(question: string): Promise<string | null> {
     const typed = await text({ message: question });
     return isCancel(typed) ? null : String(typed ?? "");
-}
-
-/** Ask for a provider's key (the one in use by default) and save it for this user. Returns false when skipped. */
-export async function setupApiKey(settings: Settings, provider = settings.llmProvider): Promise<boolean> {
-    const { label, keysUrl } = profileFor(provider);
-    log.info(
-        [
-            chalk.bold(`yuvi needs a ${label} key to talk to an AI model.`),
-            `1. Open ${keysUrl} and sign in`,
-            "2. Create a key and copy it",
-            "3. Paste it below — it is saved on this computer only (~/.yuvi/settings.json)",
-            chalk.dim("To use another provider, type / and choose “Switch AI provider”."),
-        ].join("\n"),
-    );
-    const key = await password({
-        message: `Paste your ${label} key (Esc to skip):`,
-        validate: (value) =>
-            value && value.trim().length < MIN_KEY_LENGTH ? "That looks too short to be a key." : undefined,
-    });
-    if (isCancel(key) || !String(key ?? "").trim()) return false;
-    settings.saveApiKey(String(key).trim(), provider);
-    log.success("Key saved. You are ready to go.");
-    return true;
 }

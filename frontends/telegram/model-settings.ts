@@ -45,8 +45,8 @@ async function pick<T extends string>(ctx: ModelMenuContext, title: string, choi
 /** /provider: switch to another provider that has a key. */
 export async function changeProvider(ctx: ModelMenuContext): Promise<void> {
     const { settings } = ctx;
-    // A key saved from the terminal since the bot started counts, without a restart.
-    settings.reload();
+    // A login done in the terminal since the bot started counts, without a restart.
+    await settings.loadKeys();
     const title = `<b>Which AI provider?</b>\n<i>Now: ${escapeHtml(settings.llmProfile.label)}</i>`;
     const picked = await pick(ctx, title, providerChoices(settings));
     if (!picked || picked === settings.llmProvider) return;
@@ -54,7 +54,8 @@ export async function changeProvider(ctx: ModelMenuContext): Promise<void> {
     if (!settings.hasKey(picked)) {
         return void (await ctx.messenger.send(
             `✗ ${escapeHtml(label)} has no key yet, so nothing was changed. Keys are never set from Telegram. ` +
-                "On your PC run yuvi, type / and choose “Switch AI provider” (it asks for the key), then send /provider here again.",
+                "On your PC run <code>yuvi wakeup</code>, choose “Log in” and pick " +
+                `${escapeHtml(label)} (yuvi checks the key), then send /provider here again.`,
         ));
     }
     settings.saveProvider(picked);

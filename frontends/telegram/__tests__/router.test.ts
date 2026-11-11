@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { convertArrayToReadableStream, MockLanguageModelV4 } from "ai/test";
 import { createCore } from "../../../core/compose";
 import { Settings } from "../../../core/config";
+import { MemoryKeyStore, type KeyStore } from "../../../core/security/key-store";
 import { modes } from "../../../modes";
 import { FAKE_API_KEY, makeWorkspace, type Workspace } from "../../../modes/agent/__tests__/helpers";
 import type { TgUpdate } from "../api/types";
@@ -43,7 +44,12 @@ beforeEach(() => {
 });
 afterEach(() => ws.cleanup());
 
-function setup(steps: StreamPart[][] = [], projects: TelegramConfig["projects"] = [], env: Record<string, string> = {}) {
+function setup(
+    steps: StreamPart[][] = [],
+    projects: TelegramConfig["projects"] = [],
+    env: Record<string, string> = {},
+    store: KeyStore = new MemoryKeyStore(),
+) {
     let call = 0;
     const model = new MockLanguageModelV4({
         doStream: async () => ({ stream: convertArrayToReadableStream((steps[call++] ?? say("(script ended)")) as never) }),
@@ -52,6 +58,7 @@ function setup(steps: StreamPart[][] = [], projects: TelegramConfig["projects"] 
         // YUVI_LLM is fixed so a provider chosen in the developer's .env cannot leak in.
         { ...process.env, YUVI_LLM: "openrouter", YUVI_DEV: "1", YUVI_TRIAGE: "off", YUVI_SELF_REVIEW: "off", YUVI_LOG: "", OPENROUTER_API_KEY: FAKE_API_KEY, ...env },
         null,
+        store,
     );
     const core = createCore(settings, { llmProviders: { openrouter: () => () => model } });
     const api = new FakeTelegramApi();
@@ -406,6 +413,20 @@ describe("provider, model and effort menus", () => {
         await switching;
         expect(settings.llmProvider).toBe("openrouter");
         expect(api.last()!.text).toContain("OpenAI has no key yet, so nothing was changed.");
+    });
+
+    test("/provider sees a key logged in from the terminal after the bot started", async () => {
+        const vault = new MemoryKeyStore();
+        const chat = setup([], [], keys, vault);
+        await chat.send(`/unlock ${PIN}`);
+        // The terminal (another Settings object) logs in to Gemini while the bot runs.
+        await vault.set("gemini", "gemini-key-1234567890");
+        const switching = chat.send("/provider");
+        await until(() => chat.api.button("Gemini"), "the Gemini button");
+        await chat.press("Gemini");
+        await switching;
+        expect(chat.settings.llmProvider).toBe("gemini");
+        expect(chat.api.last()!.text).toContain("Now using <b>Gemini</b>");
     });
 
     test("/provider warns when .env names the provider", async () => {

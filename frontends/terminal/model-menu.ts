@@ -15,7 +15,8 @@ import {
 } from "../../core/llm/choices";
 import { profileFor } from "../../core/llm/profiles";
 import type { Choice } from "../../core/mode";
-import { askText, chooseOne, setupApiKey } from "./prompts";
+import { logIn } from "./login";
+import { askText, chooseOne } from "./prompts";
 
 /** What to tell the user after a menu: a terminal notice. */
 export interface MenuNotice {
@@ -27,11 +28,15 @@ export interface MenuNotice {
 export interface MenuPrompts {
     choose<T extends string>(question: string, choices: Choice<T>[], initial?: T): Promise<T | null>;
     askText(question: string): Promise<string | null>;
-    /** Ask for a provider's key and save it. False when skipped. */
+    /** Ask for a provider's key, check it and save it. False when skipped or rejected. */
     setupKey(settings: Settings, provider: string): Promise<boolean>;
 }
 
-export const TERMINAL_PROMPTS: MenuPrompts = { choose: chooseOne, askText, setupKey: setupApiKey };
+export const TERMINAL_PROMPTS: MenuPrompts = {
+    choose: chooseOne,
+    askText,
+    setupKey: (settings, provider) => logIn(settings, provider),
+};
 
 const ENV_WINS_NOTE = "(.env sets it too, and .env wins at the next start: remove that line to keep this choice.)";
 

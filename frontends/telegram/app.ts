@@ -42,6 +42,14 @@ export async function runTelegram(registry: ModeRegistry, options: TelegramAppOp
         return;
     }
 
+    await settings.loadKeys();
+    if (!settings.hasKey(settings.llmProvider)) {
+        console.error(
+            `There is no ${settings.llmProfile.label} key yet. Run "yuvi wakeup", choose CLI and log in, then start the bot again.`,
+        );
+        return;
+    }
+
     silenceSdkWarnings();
     const core = createCore(settings);
     const api = options.api ?? new FetchTelegramApi(config.token);

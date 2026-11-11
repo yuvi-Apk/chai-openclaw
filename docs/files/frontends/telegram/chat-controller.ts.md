@@ -26,7 +26,26 @@ get modelMenu(): ModelMenuContext {
 
 ---
 
+### `refuseKey()`: keys never travel through the chat
+
+```ts
+async refuseKey(): Promise<void> {
+    await this.messenger.send(
+        "🔑 Keys are never set from Telegram: a key typed here would stay in the chat history. Log in on your PC: run yuvi wakeup in the terminal and choose “Log in”.",
+    );
+}
+```
+
+**What it does:** Sends one friendly message when someone tries to set a key in the chat (the hidden `/key` command in [commands.ts](commands.ts.md)). It explains *why* not, and points to the terminal's **Log in** menu item ([login.ts](../terminal/login.ts.md)).
+
+**Why it's used in general:** Chat messages are kept on the chat service's servers. A secret pasted there stays there, even if you delete it later.
+
+**Why it's used here:** The terminal can check a key and lock it in the OS credential vault. Telegram can't do that safely, so it simply says no and shows you the safe way.
+
+---
+
 ### 🧠 Key takeaways
 - One `ChatController` per chat; it only knows the `Mode` contract.
 - The model menus are not in this file; it just provides `modelMenu`.
+- Keys are refused in chat, with a pointer to logging in on your PC.
 - A small context object keeps the menu code from depending on the whole controller.

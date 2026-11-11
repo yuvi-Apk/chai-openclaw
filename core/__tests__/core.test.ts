@@ -109,16 +109,17 @@ describe("settings per model provider", () => {
         expect(settings.modelId("main")).toBe("router/model");
     });
 
-    test("a key or model saved in the app goes to the provider in use", () => {
+    test("a key or model saved in the app goes to the provider in use; the key stays out of the file", async () => {
         const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "yuvi-settings-")), "settings.json");
         const openai = new Settings({ YUVI_LLM: "openai" }, file);
-        openai.saveApiKey("sk-saved-openai-123");
+        await openai.saveApiKey("sk-saved-openai-123");
         openai.saveModel("gpt-picked");
         expect(openai.apiKey).toBe("sk-saved-openai-123");
+        expect(openai.keySource("openai")).toBe("vault");
         expect(openai.modelId("main")).toBe("gpt-picked");
 
         const saved = JSON.parse(fs.readFileSync(file, "utf8"));
-        expect(saved).toEqual({ openaiApiKey: "sk-saved-openai-123", openaiModel: "gpt-picked" });
+        expect(saved).toEqual({ openaiModel: "gpt-picked" });
         const router = new Settings({}, file);
         expect(router.apiKey).toBe("");
         expect(router.modelId("main")).toBe("openrouter/free");
@@ -161,18 +162,18 @@ describe("settings per model provider", () => {
         expect(new Settings({ ...env, ANTHROPIC_FAST_MODEL: "claude-x" }, null).modelId("fast")).toBe("claude-x");
     });
 
-    test("keys and models saved for Gemini and Claude go to their own fields", () => {
+    test("keys and models saved for Gemini and Claude go to their own places", async () => {
         const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "yuvi-settings-")), "settings.json");
         const gemini = new Settings({ YUVI_LLM: "gemini" }, file);
-        gemini.saveApiKey("gemini-saved-123");
+        await gemini.saveApiKey("gemini-saved-123");
         gemini.saveModel("gemini-picked");
         const claude = new Settings({ YUVI_LLM: "anthropic" }, file);
-        claude.saveApiKey("sk-ant-saved-123");
+        await claude.saveApiKey("sk-ant-saved-123");
         claude.saveModel("claude-picked");
+        expect(gemini.apiKey).toBe("gemini-saved-123");
+        expect(claude.apiKey).toBe("sk-ant-saved-123");
         expect(JSON.parse(fs.readFileSync(file, "utf8"))).toEqual({
-            geminiApiKey: "gemini-saved-123",
             geminiModel: "gemini-picked",
-            anthropicApiKey: "sk-ant-saved-123",
             anthropicModel: "claude-picked",
         });
         expect(new Settings({}, file).apiKey).toBe("");

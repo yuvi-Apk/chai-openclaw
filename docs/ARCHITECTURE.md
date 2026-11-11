@@ -26,7 +26,8 @@ core/                        everything the modes share; imports nothing above i
 
 | Folder / file | Job |
 |---|---|
-| `core/config.ts` | `Settings`: the only code that reads the environment and `~/.yuvi/settings.json`. Validates values and applies defaults. |
+| `core/config.ts` | `Settings`: the only code that reads the environment and `~/.yuvi/settings.json`. Validates values and applies defaults. Keys come from `.env` or the OS credential vault (`loadKeys()`, through `core/security/key-store.ts`). Types are in `core/settings-types.ts`. |
+| `core/llm/verify-key.ts` | Checks a pasted key with one tiny model call before it is saved. |
 | `core/compose.ts` | `createCore(settings)`: builds the shared services (model client, search, page reader, logger). The one place providers are chosen. |
 | `core/mode.ts` | The contract between modes and front ends: `Mode`, `ModeSession`, `ModeHost`, `ModeEvent`, `ModeRegistry`, tool permissions. |
 | `core/llm/` | `LLMClient` interface, its AI SDK implementation, and the model provider registry. |
@@ -37,7 +38,7 @@ core/                        everything the modes share; imports nothing above i
 | `core/cache.ts`, `core/history.ts` | Cache and conversation-history interfaces with in-memory versions. |
 | `core/testing.ts` | Test doubles: a scripted model and a host with no screen. |
 | `modes/<name>/mode.ts` | The mode's entry point. Everything else in the folder is private to the mode. |
-| `frontends/terminal/` | `app.ts` (main menu), `session-loop.ts` (runs any mode), `renderer.ts` (events to screen), `prompts.ts` (questions), `input.ts` (the input box). |
+| `frontends/terminal/` | `app.ts` (main menu), `login.ts` (first-run welcome, log in with a key check, log out), `model-menu.ts` (provider, model, effort), `session-loop.ts` (runs any mode), `renderer.ts` (events to screen), `prompts.ts` (questions), `input.ts` (the input box). |
 | `frontends/telegram/` | `app.ts` (start), `poller.ts` (fetch updates), `router.ts` (allowlist, PIN lock, rate limit), `chat-controller.ts` (one chat: mode, session, turn), `host.ts` (`ModeHost`), `confirm-view.ts` (approval buttons), `questions.ts` (one-time buttons), `lock.ts`, `files.ts`, `commands.ts`, `api/` (Bot API behind `TelegramApi`), `view/` (HTML, activity message, sending). |
 | `core/security/path-safety.ts` | `resolveInside` and `isSensitivePath`: keep file access inside a folder and away from secrets files. |
 
@@ -124,7 +125,7 @@ The full definitions, with comments, are in `core/mode.ts`.
 | Variable | Default | Meaning |
 |---|---|---|
 | `YUVI_LLM` | `openrouter`, or the one picked in the app | Model provider: `openrouter`, `openai`, `gemini` or `anthropic` |
-| `OPENROUTER_API_KEY` | none | OpenRouter key (can also be saved from the app) |
+| `OPENROUTER_API_KEY` | none | OpenRouter key. Every `*_API_KEY` is optional: logging in from the app keeps the key in the OS credential vault instead, and a key in `.env` wins over it |
 | `OPENROUTER_DEFAULT_MODEL` | `openrouter/free` | Main model on OpenRouter |
 | `YUVI_MODEL_FAST` | main model | Cheap OpenRouter model for triage, routing and summaries |
 | `OPENAI_API_KEY` | none | OpenAI key, used when `YUVI_LLM=openai` (can also be saved from the app) |

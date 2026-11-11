@@ -105,7 +105,7 @@ class ChatModeSession implements ModeSession {
                 host.emit({
                     type: "error",
                     message: redactSecrets(errorText(error), secrets),
-                    hint: "In chat: /key sets the API key, /model changes the model, /new starts over.",
+                    hint: "In chat: /login sets the API key, /model changes the model, /new starts over.",
                 });
             }
         }

@@ -1,8 +1,8 @@
 # frontends/terminal/prompts.ts
 
-**Purpose:** Every **question the terminal asks you**: save these changes? run this command? pick an option, type an answer, set your API key.
+**Purpose:** The everyday **questions the terminal asks you**: save these changes? run this command? pick an option, type an answer. Logging in (asking for an API key) has its own file, [login.ts](login.ts.md).
 
-**Where it fits:** Modes never ask questions themselves. They call `host.confirm`, `host.choose` or `host.ask`, and the terminal front end ([session-loop.ts](session-loop.ts.md)) answers them with these functions. The menus are built with [@clack/prompts](../../../concepts/clack-prompts.md), colours with [chalk](../../../concepts/chalk-terminal-colors.md). Keys and models are saved through [core/config.ts](../../core/config.ts.md).
+**Where it fits:** Modes never ask questions themselves. They call `host.confirm`, `host.choose` or `host.ask`, and the terminal front end ([session-loop.ts](session-loop.ts.md)) answers them with these functions. [model-menu.ts](model-menu.ts.md) and [login.ts](login.ts.md) reuse `chooseOne` and `askText`. The menus are built with [@clack/prompts](../../../concepts/clack-prompts.md), colours with [chalk](../../../concepts/chalk-terminal-colors.md).
 
 ---
 
@@ -64,34 +64,8 @@ export async function askText(question: string): Promise<string | null> {
 
 ---
 
-### `setupApiKey()`: set a key for a provider
-
-```ts
-export async function setupApiKey(settings: Settings, provider = settings.llmProvider): Promise<boolean> {
-    const { label, keysUrl } = profileFor(provider);
-    log.info([
-        chalk.bold(`yuvi needs a ${label} key to talk to an AI model.`),
-        `1. Open ${keysUrl} and sign in`,
-        // ...
-        chalk.dim("To use another provider, type / and choose “Switch AI provider”."),
-    ].join("\n"));
-    const key = await password({ message: `Paste your ${label} key (Esc to skip):`, ... });
-    // ...
-    settings.saveApiKey(String(key).trim(), provider);
-}
-```
-
-**What it does:** Looks up the [provider profile](../../core/llm/profiles.ts.md) for `provider` and shows steps with that provider's name and key page. `provider` defaults to the one in use, but a caller can name another. It uses `password()`, so the key is hidden as you type. A key shorter than 20 characters is refused as "too short". Then `saveApiKey` stores it in that provider's own field.
-
-**Why it's used in general:** A **default parameter** (`provider = settings.llmProvider`) keeps the simple call simple (`setupApiKey(settings)`) while allowing a more specific one.
-
-**Why it's used here:** The `/key` command uses the default. The provider menu in [model-menu.ts](model-menu.ts.md) calls `setupApiKey(settings, "gemini")` to ask for Gemini's key *before* switching to it. The key goes to `~/.yuvi/settings.json` only ([user-settings-file.md](../../../concepts/user-settings-file.md)).
-
----
-
 ### 🧠 Key takeaways
-- All terminal questions live here; modes only ask through the host.
+- The questions modes ask (through the host) are answered here.
 - The safe answer is always "no": no terminal or Esc means nothing changes.
-- The key prompt names the provider and links to its key page.
-- `setupApiKey` can save a key for any provider, not only the one in use.
-- Picking a model or provider lives in [model-menu.ts](model-menu.ts.md).
+- `chooseOne` and `askText` are small, shared building blocks other terminal files reuse.
+- Asking for a key lives in [login.ts](login.ts.md); picking a model or provider lives in [model-menu.ts](model-menu.ts.md).

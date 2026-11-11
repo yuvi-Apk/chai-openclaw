@@ -19,7 +19,8 @@ import {
 } from "../../core/mode";
 import { readInput } from "./input";
 import { chooseEffort, chooseModel, chooseProvider, type MenuNotice } from "./model-menu";
-import { askText, chooseOne, confirmChanges, confirmCommand, setupApiKey } from "./prompts";
+import { ensureLoggedIn, logIn, logOut } from "./login";
+import { askText, chooseOne, confirmChanges, confirmCommand } from "./prompts";
 import { TerminalRenderer } from "./renderer";
 import { paint, styled } from "./style";
 
@@ -102,10 +103,16 @@ function appCommands(
             run: async () => void show(await chooseEffort(settings)),
         },
         {
-            name: "/key",
-            label: "Set API key",
-            hint: typed ? `set your ${settings.llmProfile.label} key` : `${settings.llmProfile.label} key`,
-            run: async () => void (await setupApiKey(settings)),
+            name: "/login",
+            label: "Log in / change key",
+            hint: typed ? `paste a new ${settings.llmProfile.label} key` : `${settings.llmProfile.label} key`,
+            run: async () => void (await logIn(settings, settings.llmProvider)),
+        },
+        {
+            name: "/logout",
+            label: "Log out",
+            hint: "remove a saved key",
+            run: async () => void (await logOut(settings)),
         },
         { name: "/help", label: "Help", hint: typed ? "what you can do here" : "keys and modes", run: help },
         { name: "/exit", label: `Exit ${mode.label.toLowerCase()}`, hint: "back to the main menu", run: () => "exit" },
@@ -131,12 +138,14 @@ export async function runModeSession(mode: Mode): Promise<void> {
     silenceSdkWarnings();
 
     const typed = mode.commandStyle === "typed";
-    const core = createCore(new Settings());
-    if (!core.settings.apiKey && process.stdin.isTTY && !(await setupApiKey(core.settings))) {
+    const settings = new Settings();
+    await settings.loadKeys();
+    const core = createCore(settings);
+    if (process.stdin.isTTY && !(await ensureLoggedIn(settings))) {
         log.warn(
             typed
-                ? "No key set. You can add it later with /key."
-                : "No key set. You can add it later: type / and choose “Set API key”.",
+                ? "Not logged in. You can log in later with /login."
+                : "Not logged in. You can log in later: type / and choose “Log in / change key”.",
         );
     }
 

@@ -105,3 +105,14 @@ every call, so a switch needs no restart. The option lists live in
 a missing key when switching; Telegram never takes keys, so it refuses a
 provider without one (it re-reads the settings file first, to see a key saved
 from the terminal).
+
+**D24 · 2026-11 · Log in and out; keys live in the OS credential vault and are checked first.**
+Keys are kept through `Bun.secrets` (Windows Credential Manager, macOS Keychain,
+libsecret), behind the `KeyStore` interface in `core/security/key-store.ts`, so
+tests use `MemoryKeyStore`. Only the real `~/.yuvi/settings.json` pairs with the
+vault, and never under `bun test`. `Settings.loadKeys()` reads the vault into
+memory (getters stay sync) and moves a key found in the old settings file into
+it. With no vault, keys fall back to that file. A pasted key is checked with one
+tiny model call (`core/llm/verify-key.ts`) before it is saved; a rejected key is
+asked for again. yuvi never edits `.env`: a key there wins, and logging out of
+it explains which line to delete. Telegram still never takes keys.

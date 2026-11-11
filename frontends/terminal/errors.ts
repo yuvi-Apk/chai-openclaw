@@ -13,11 +13,11 @@ function wordingFor(provider: LLMProviderProfile): Wording {
     return {
         auth_missing: {
             problem: `Your ${label} key is missing or not accepted.`,
-            fix: `Type / and choose “Set API key”, then paste a key from ${keysUrl}`,
+            fix: `Type / and choose “Log in / change key”, then paste a key from ${keysUrl}`,
         },
         auth_rejected: {
             problem: `${label} did not accept your API key.`,
-            fix: `Type / and choose “Set API key” and paste a fresh key from ${keysUrl}`,
+            fix: `Type / and choose “Log in / change key” and paste a fresh key from ${keysUrl}`,
         },
         no_credits: {
             problem: `Your ${label} account has no credits left for this model.`,

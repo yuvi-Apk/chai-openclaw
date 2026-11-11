@@ -70,7 +70,7 @@ No server or public address is needed.
 | a file | Saved into the project after you confirm (`uploads/`, or the folder named in the caption) |
 | `/file <path>` | Sends a project file to you |
 | `/project` | Switch between folders listed in `YUVI_TELEGRAM_PROJECTS` |
-| `/provider`, `/model`, `/effort` | Switch AI provider, model or thinking effort with buttons (keys are set on your PC only) |
+| `/provider`, `/model`, `/effort` | Switch AI provider, model or thinking effort with buttons (log in on your PC with `yuvi wakeup`; keys are never sent through Telegram) |
 | `/thinking on\|off`, `/help` | Display settings and help |
 | `/lock`, `/unlock` | Lock now; unlock with your PIN |
 
@@ -104,9 +104,24 @@ cd chai-openclaw
 bun install
 ```
 
-### Configure
+### Log in
 
-Create a `.env` file in the project root:
+The easy way needs no `.env` at all. Run `yuvi wakeup` and choose CLI. The
+first time, yuvi asks which AI provider you want and for its API key. It checks
+the key with one tiny request (a rejected key is asked for again), then keeps
+it in your system's credential vault (Windows Credential Manager, macOS
+Keychain), not in a plain text file. The main menu shows who you are logged in
+to and has **Log in** (switch provider or paste a new key) and **Log out**
+(remove a saved key). Inside a mode, type `/` for the same, or `/login` and
+`/logout` in Chat. A key saved by an older version in `~/.yuvi/settings.json`
+moves to the vault on the next start. In Windows you can see the keys under
+Credential Manager → Windows Credentials → `yuvi`.
+
+### Configure with .env (optional)
+
+Instead of logging in, you can create a `.env` file in the project root. A key
+in `.env` wins over a logged-in one, and the app cannot log you out of it:
+delete the line instead.
 
 ```bash
 # Optional: which provider to use: openrouter (default), openai, gemini or anthropic.
@@ -134,7 +149,8 @@ ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxx
 Any number of keys can be set at once. Switch between them in the app: in
 the terminal type `/` and choose **Switch AI provider**, **Change AI model**
 or **Change thinking effort**; in Telegram send `/provider`, `/model` or
-`/effort`. The choice is saved in `~/.yuvi/settings.json`. A value in `.env`
+`/effort`. The choice is saved in `~/.yuvi/settings.json` (keys are not, they
+go to the credential vault). A value in `.env`
 (`YUVI_LLM`, a model variable, `YUVI_REASONING`) wins at the next start, so
 leave those out if you want to pick in the app. Each provider keeps its own
 model setting. With OpenAI, Gemini and Claude the cost line shows $0, because

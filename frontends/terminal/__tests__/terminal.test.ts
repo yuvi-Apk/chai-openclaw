@@ -47,7 +47,7 @@ describe("errors in plain words", () => {
         const openai = profileFor("openai");
         expect(explainError("Incorrect API key provided", openai)).toEqual({
             problem: "OpenAI did not accept your API key.",
-            fix: "Type / and choose “Set API key” and paste a fresh key from https://platform.openai.com/api-keys",
+            fix: "Type / and choose “Log in / change key” and paste a fresh key from https://platform.openai.com/api-keys",
         });
         const noCredit = explainError("You exceeded your current quota", openai);
         expect(noCredit.problem).toBe("Your OpenAI account has no credits left for this model.");

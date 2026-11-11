@@ -2,7 +2,7 @@
 
 **Purpose:** The terminal's three **model menus**: switch AI provider, pick a model, set the thinking effort. Each saves your choice for next time and returns a short notice to show, or `null` when nothing changed.
 
-**Where it fits:** [session-loop.ts](session-loop.ts.md) runs these from the `/provider`, `/model` and `/effort` commands and shows the notice with [renderer.ts](renderer.ts.md). The option lists come from [core/llm/choices.ts](../../core/llm/choices.ts.md); the real questions come from [prompts.ts](prompts.ts.md); the saving is done by [core/config.ts](../../core/config.ts.md).
+**Where it fits:** [session-loop.ts](session-loop.ts.md) runs these from the `/provider`, `/model` and `/effort` commands and shows the notice with [renderer.ts](renderer.ts.md). The option lists come from [core/llm/choices.ts](../../core/llm/choices.ts.md); the real questions come from [prompts.ts](prompts.ts.md) and, for keys, [login.ts](login.ts.md); the saving is done by [core/config.ts](../../core/config.ts.md).
 
 ---
 
@@ -17,13 +17,18 @@ export interface MenuNotice {
 export interface MenuPrompts {
     choose<T extends string>(question: string, choices: Choice<T>[], initial?: T): Promise<T | null>;
     askText(question: string): Promise<string | null>;
+    /** Ask for a provider's key, check it and save it. False when skipped or rejected. */
     setupKey(settings: Settings, provider: string): Promise<boolean>;
 }
 
-export const TERMINAL_PROMPTS: MenuPrompts = { choose: chooseOne, askText, setupKey: setupApiKey };
+export const TERMINAL_PROMPTS: MenuPrompts = {
+    choose: chooseOne,
+    askText,
+    setupKey: (settings, provider) => logIn(settings, provider),
+};
 ```
 
-**What it does:** `MenuNotice` is what a menu hands back: a level and a sentence. `MenuPrompts` lists the three questions a menu may ask. `TERMINAL_PROMPTS` fills them with the real [@clack/prompts](../../../concepts/clack-prompts.md) versions.
+**What it does:** `MenuNotice` is what a menu hands back: a level and a sentence. `MenuPrompts` lists the three questions a menu may ask. `TERMINAL_PROMPTS` fills them with the real versions: `chooseOne` and `askText` from [prompts.ts](prompts.ts.md), and `logIn` from [login.ts](login.ts.md) for the key. So a key typed here is **checked with one tiny model call** before it's saved, the same as on the main menu.
 
 **Why it's used in general:** Taking the "ask the user" part as a parameter is [dependency injection](../../../concepts/typescript-classes.md). Returning a value instead of printing keeps the function easy to check.
 
@@ -46,7 +51,7 @@ settings.saveProvider(picked);
 
 **What it does:**
 1. Shows every provider, starting on the current one. Cancel or "same one" → nothing happens.
-2. If the new provider has **no key**, it asks for one (and saves it to *that* provider). If you skip, you stay on the old provider and get a note saying why.
+2. If the new provider has **no key**, it asks for one, checks it, and saves it for *that* provider. If you skip (or the key is rejected), you stay on the old provider and get a note saying why.
 3. Otherwise it switches and saves, then says "Now using Claude with claude-sonnet-5-5, saved for next time."
 4. If `.env` also names a provider, it adds a warning: `.env` wins at the next start.
 
@@ -87,5 +92,5 @@ saveEffort(settings, picked);
 ### 🧠 Key takeaways
 - Three menus, one pattern: ask → nothing changed? return `null` → save → return a notice.
 - The prompts are injected, so tests answer them without a keyboard.
-- A provider without a key is never switched to; you're asked for the key first.
+- A provider without a key is never switched to; you're asked for the key first, and it is checked before it's saved.
 - When `.env` sets the same thing, the notice tells you `.env` will win at the next start.

@@ -19,7 +19,7 @@ function scripted(answers: (string | null)[], key: string | null = null) {
         setupKey: async (settings: Settings, provider: string) => {
             keyAsked.push(provider);
             if (!key) return false;
-            settings.saveApiKey(key, provider);
+            await settings.saveApiKey(key, provider);
             return true;
         },
     };

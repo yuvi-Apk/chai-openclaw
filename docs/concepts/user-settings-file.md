@@ -11,7 +11,8 @@ Compare the two places a setting can live:
 | Place | Scope | Good for |
 |---|---|---|
 | `.env` or a config file **in the project** | this one project | things that differ per project |
-| a file **in the home folder** | every project, for this user | personal things: your API key, your favourite model |
+| a file **in the home folder** | every project, for this user | personal choices: your favourite model, provider, effort |
+| the **OS credential vault** | every project, for this user | secrets such as API keys ([os-credential-vault.md](os-credential-vault.md)) |
 
 An analogy: a project file is a note pinned to one office door. A home-folder file is a note in your own wallet. It goes wherever you go.
 
@@ -60,19 +61,23 @@ So a project can still override your personal choice when it needs to.
 
 ## Keeping secrets safe
 
-A settings file with an API key is sensitive.
+A settings file is plain text, so it's a poor home for secrets.
 
 - `mode: 0o600` means "only the owner can read and write". This works on Linux and macOS. Windows mostly ignores it and relies on your user folder's own protection.
 - The file is outside every project, so it cannot be committed to Git by accident.
-- It is still plain text. Anyone who can log in as you can read it.
+- It is still plain text. Anyone (or any program) that can read your home folder can read it.
+
+That's why `yuvi` keeps API keys in the [OS credential vault](os-credential-vault.md) instead. The settings file only holds choices like the model. A key is written to the file only on a machine with no usable vault, and a key left there by an older version is moved into the vault on the next start.
 
 ## Where this project uses it
 
-- [ai/ai.config.ts](../files/ai/ai.config.ts.md): `readUserSettings`, `saveUserSettings`, and `applyUserSettings`.
-- [modes/agent/orchestrator.ts](../files/modes/agent/orchestrator.ts.md): asks for your key on first run and saves your model choice from the menu.
+- [core/config.ts](../files/core/config.ts.md): `Settings` reads, merges and writes `~/.yuvi/settings.json`, and keeps keys in the vault.
+- [core/settings-types.ts](../files/core/settings-types.ts.md): `UserSettings`, the shape of the file.
+- [frontends/terminal/login.ts](../files/frontends/terminal/login.ts.md) and [model-menu.ts](../files/frontends/terminal/model-menu.ts.md): save your login, provider, model and effort.
 
 ## 🧠 Key takeaways
 - Per-user settings live in a hidden folder in the home directory and work in every project.
 - Use `homedir()` and `path.join` to build the path.
 - Update with read → merge → write, and treat a missing file as empty settings.
 - Settings come in layers: environment first, user file second, defaults last.
+- Secrets belong in the OS vault, not in a plain-text settings file.

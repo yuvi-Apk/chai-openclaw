@@ -11,32 +11,10 @@ import path from "node:path";
 import { homedir } from "node:os";
 import { ConfigError } from "./errors";
 import { LLM_PROFILES, profileFor, type LLMProviderProfile } from "./llm/profiles";
+import { KeyRing, MemoryKeyStore, OsKeyStore, type KeyStore } from "./security/key-store";
+import { REASONING_EFFORTS, type KeySource, type ModelRole, type ReasoningEffort, type UserSettings } from "./settings-types";
 
-export type ModelRole = "main" | "fast";
-
-export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-export const REASONING_EFFORTS: readonly ReasoningEffort[] = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
-
-/** Settings saved for this user, so they work in every project. */
-export interface UserSettings {
-    /** The model provider picked in a menu (a name in LLM_PROFILES). */
-    llmProvider?: string;
-    /** The reasoning effort picked in a menu: a ReasoningEffort or "off". */
-    reasoning?: string;
-    /** OpenRouter key and models (the names predate other providers). */
-    apiKey?: string;
-    model?: string;
-    fastModel?: string;
-    openaiApiKey?: string;
-    openaiModel?: string;
-    openaiFastModel?: string;
-    geminiApiKey?: string;
-    geminiModel?: string;
-    geminiFastModel?: string;
-    anthropicApiKey?: string;
-    anthropicModel?: string;
-    anthropicFastModel?: string;
-}
+export { REASONING_EFFORTS, type KeySource, type ModelRole, type ReasoningEffort, type UserSettings };
 
 type Env = Record<string, string | undefined>;
 
@@ -47,20 +25,53 @@ const MIN_SECRET_LENGTH = 8;
 
 export const userSettingsFile = () => path.join(homedir(), ".yuvi", "settings.json");
 
+/**
+ * Only the user's real settings file pairs with the OS vault, and never under
+ * `bun test` (it sets NODE_ENV=test): a test must not touch the real keys.
+ */
+function usesRealVault(file: string | null): boolean {
+    return file === userSettingsFile() && process.env.NODE_ENV !== "test";
+}
+
 export class Settings {
     private saved: UserSettings = {};
     /** Values saved during this run. They win over the environment. */
     private changed: UserSettings = {};
+    private readonly keys: KeyRing;
 
     /**
-     * @param env  where environment values come from
-     * @param file the saved settings file, or null to keep settings in memory only (tests)
+     * @param env   where environment values come from
+     * @param file  the saved settings file, or null to keep settings in memory only (tests)
+     * @param store where keys are kept: the OS vault for the real settings file, else memory
      */
     constructor(
         private readonly env: Env = process.env,
         private readonly file: string | null = userSettingsFile(),
+        store: KeyStore = usesRealVault(file) ? new OsKeyStore() : new MemoryKeyStore(),
     ) {
+        this.keys = new KeyRing(store);
         this.reload();
+    }
+
+    /**
+     * Read the settings file and every provider's key from the vault. A key
+     * still in the settings file moves to the vault and leaves the file.
+     */
+    async loadKeys(): Promise<void> {
+        this.reload();
+        const names = Object.keys(LLM_PROFILES);
+        await this.keys.load(names);
+        for (const name of names) {
+            const field = profileFor(name).savedKey;
+            const old = this.saved[field];
+            if (!old || typeof old !== "string") continue;
+            if (this.keys.get(name) || (await this.keys.set(name, old))) this.save({ [field]: "" });
+        }
+    }
+
+    /** False when this machine has no usable vault, so keys are kept in the settings file. */
+    get keyVaultWorks(): boolean {
+        return this.keys.usable;
     }
 
     /** Read the saved settings file again. */
@@ -77,9 +88,14 @@ export class Settings {
     save(patch: UserSettings): void {
         this.saved = { ...this.saved, ...patch };
         for (const [key, value] of Object.entries(patch)) {
+            const field = key as keyof UserSettings;
             // An empty value clears the setting, so the environment or default applies again.
-            if (value) this.changed[key as keyof UserSettings] = value;
-            else delete this.changed[key as keyof UserSettings];
+            if (value) {
+                this.changed[field] = value;
+            } else {
+                delete this.changed[field];
+                delete this.saved[field];
+            }
         }
         if (!this.file) return;
         fs.mkdirSync(path.dirname(this.file), { recursive: true });
@@ -134,19 +150,41 @@ export class Settings {
 
     /** The key of the model provider in use. */
     get apiKey(): string {
-        const profile = this.llmProfile;
-        return this.pick(profile.keyEnv, profile.savedKey);
+        return this.keyFor(this.llmProvider);
     }
 
-    /** Save a key for a provider: the one in use unless another is named. */
-    saveApiKey(key: string, provider = this.llmProvider): void {
-        this.save({ [profileFor(provider).savedKey]: key });
+    /** A provider's key: saved this run, then .env, then the vault, then the old file value. */
+    private keyFor(provider: string): string {
+        const { keyEnv, savedKey } = profileFor(provider);
+        const saved = this.saved[savedKey];
+        return this.changed[savedKey] || this.env[keyEnv] || this.keys.get(provider) || (typeof saved === "string" ? saved : "");
+    }
+
+    /** Where a provider's key comes from, so a front end can explain how to log out. */
+    keySource(provider: string): KeySource {
+        const { keyEnv, savedKey } = profileFor(provider);
+        if (this.changed[savedKey]) return "file";
+        if (this.env[keyEnv]) return "env";
+        if (this.keys.get(provider)) return "vault";
+        return this.saved[savedKey] ? "file" : "none";
+    }
+
+    /** Save a key for a provider (the one in use unless another is named): the vault, else the file. */
+    async saveApiKey(key: string, provider = this.llmProvider): Promise<void> {
+        const field = profileFor(provider).savedKey;
+        if (await this.keys.set(provider, key)) this.save({ [field]: "" });
+        else this.save({ [field]: key });
+    }
+
+    /** Remove a provider's saved key from the vault and the file. A key in .env stays. */
+    async forgetKey(provider: string): Promise<void> {
+        await this.keys.delete(provider);
+        this.save({ [profileFor(provider).savedKey]: "" });
     }
 
     /** Whether a provider has a key, so a menu can switch to it safely. */
     hasKey(provider: string): boolean {
-        const profile = profileFor(provider);
-        return Boolean(this.pick(profile.keyEnv, profile.savedKey));
+        return Boolean(this.keyFor(provider));
     }
 
     /** Save the main model for the model provider in use. */
@@ -174,8 +212,8 @@ export class Settings {
      * fast - triage, routing, summaries (the profile's fastModelEnv; then its
      *        cheaper default if it has one; then the main model)
      */
-    modelId(role: ModelRole = "main"): string {
-        const profile = this.llmProfile;
+    modelId(role: ModelRole = "main", provider = this.llmProvider): string {
+        const profile = profileFor(provider);
         const main = this.pick(profile.modelEnv, profile.savedModel) || profile.defaultModel;
         if (role === "main") return main;
         return this.pick(profile.fastModelEnv, profile.savedFastModel) || profile.defaultFastModel || main;
@@ -244,7 +282,7 @@ export class Settings {
     /** Values that must never be printed, logged or handed to other programs. */
     secrets(): string[] {
         // Every provider's key, not only the active one: both may be set.
-        const providerKeys = Object.values(LLM_PROFILES).map((p) => this.pick(p.keyEnv, p.savedKey));
+        const providerKeys = Object.keys(LLM_PROFILES).map((name) => this.keyFor(name));
         return [...new Set([...providerKeys, this.tavilyApiKey, this.telegramToken, this.telegramPin])].filter(
             (value) => value.length >= MIN_SECRET_LENGTH,
         );

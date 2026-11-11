@@ -128,7 +128,7 @@ describe("chat mode through a front end without a screen", () => {
         const [error] = host.of("error");
         expect(error!.message).toContain("No auth credentials");
         expect(error!.message).not.toContain(secret);
-        expect(error!.hint).toContain("/key");
+        expect(error!.hint).toContain("/login");
     });
 
     test("two sessions do not share a conversation", async () => {

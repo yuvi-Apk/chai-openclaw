@@ -36,20 +36,24 @@ async function pick<T extends string>(ctx: ModelMenuContext, title: string, choi
 ### `changeProvider()`: `/provider`
 
 ```ts
-settings.reload();
+// A login done in the terminal since the bot started counts, without a restart.
+await settings.loadKeys();
 const picked = await pick(ctx, title, providerChoices(settings));
 if (!picked || picked === settings.llmProvider) return;
 if (!settings.hasKey(picked)) {
-    return void (await ctx.messenger.send(`✗ ${label} has no key yet, so nothing was changed. Keys are never set from Telegram. ...`));
+    return void (await ctx.messenger.send(
+        `✗ ${label} has no key yet, so nothing was changed. Keys are never set from Telegram. ` +
+            "On your PC run <code>yuvi wakeup</code>, choose “Log in” and pick " + `${label} (yuvi checks the key), ...`,
+    ));
 }
 settings.saveProvider(picked);
 ctx.log.event("telegram.provider", { provider: picked });
 ```
 
 **What it does:**
-1. `reload()` re-reads `~/.yuvi/settings.json`, so a key you saved in the terminal *after* the bot started is seen.
+1. `loadKeys()` re-reads the settings file **and** every key in the OS credential vault ([core/config.ts](../../core/config.ts.md)). So if you log in to Gemini in the terminal *after* the bot started, the bot sees it. The terminal and the bot are separate programs with separate `Settings` objects; the vault is what they share.
 2. Shows the providers as buttons, with "in use" / "no key yet" hints.
-3. No key → a ✗ message explaining how to add it on your PC, and nothing changes.
+3. No key → a ✗ message telling you to run `yuvi wakeup` on your PC, choose "Log in" and pick that provider. Nothing changes.
 4. Otherwise it switches, logs the event (only the provider name, never a key), and confirms: "✓ Now using **Claude** with `claude-sonnet-5-5`, saved."
 5. If `.env` names a provider too, it adds a note that `.env` wins when the bot restarts.
 
@@ -92,5 +96,5 @@ saveEffort(settings, picked);
 - Three menus, all built from the shared lists in [core/llm/choices.ts](../../core/llm/choices.ts.md).
 - `pick()` turns choices into inline buttons and waits for one press.
 - Keys never go through Telegram; a provider without one is refused with advice.
-- `reload()` lets the bot see a key saved from the terminal without a restart.
+- `loadKeys()` lets the bot see a terminal login without a restart.
 - Typed model ids are checked with a regular expression before saving.

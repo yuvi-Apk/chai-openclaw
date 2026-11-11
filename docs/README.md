@@ -53,13 +53,14 @@ You type:  yuvi wakeup
 
 ```bash
 bun install              # install dependencies
-# create a .env file (Bun loads it automatically); .env.example lists every setting.
+bun run index.ts wakeup  # choose CLI: the first time, yuvi asks for a provider and its key,
+                         # checks the key, and keeps it in your system's credential vault
+# Optional instead of logging in: a .env file (Bun loads it automatically; a .env key wins).
 #   OPENROUTER_API_KEY=sk-or-...                # any one key is enough
 #   OPENAI_API_KEY=sk-proj-...
 #   GEMINI_API_KEY=...
 #   ANTHROPIC_API_KEY=sk-ant-...
 #   # YUVI_LLM=openrouter                       # optional; or pick the provider in the app
-bun run index.ts wakeup  # run the wakeup command directly
 bun link                 # (optional) register the `yuvi` command on your machine
 yuvi wakeup              # then run it like a real CLI
 yuvi --help              # Commander generates help for free
@@ -68,7 +69,7 @@ yuvi --version           # prints 0.0.1
 
 In menus, use the **arrow keys** and **Enter**. Press **Ctrl+C** or **Esc** to cancel. In a text prompt, typing `exit` also leaves.
 
-Inside a mode, type `/` for the shared commands: **Switch AI provider**, **Change AI model**, **Change thinking effort** and **Set API key**. In Telegram the same menus are `/provider`, `/model` and `/effort`, shown as buttons (keys are only ever set on your PC). Your choices are saved in `~/.yuvi/settings.json`.
+The main menu shows who you're logged in to and has **Log in** (switch provider or paste a new key) and **Log out** (remove a saved key). Inside a mode, type `/` for the shared commands: **Switch AI provider**, **Change AI model**, **Change thinking effort**, **Log in / change key** and **Log out**. In Telegram the same menus are `/provider`, `/model` and `/effort`, shown as buttons (keys are only ever set on your PC). Your choices are saved in `~/.yuvi/settings.json`; keys go to the [OS credential vault](concepts/os-credential-vault.md).
 
 ## 📂 Map of the docs
 
@@ -89,16 +90,22 @@ Inside a mode, type `/` for the shared commands: **Switch AI provider**, **Chang
 - [files/modes/agent/types.ts.md](files/modes/agent/types.ts.md): shared types (`ActionLog`, `AgentConfig`) and the default agent config.
 - [files/ai/ai.config.ts.md](files/ai/ai.config.ts.md): picks the AI model through OpenRouter, using environment variables.
 - [files/ai/index.ts.md](files/ai/index.ts.md): barrel file that re-exports `getAgentModel`.
-- [files/core/config.ts.md](files/core/config.ts.md): the one place settings come from. Env, saved file, per-provider key and model, saved provider and effort, and secret hiding.
+- [files/core/config.ts.md](files/core/config.ts.md): the one place settings come from. Env, saved file, keys in the OS vault (`loadKeys`, `saveApiKey`, `forgetKey`, `keySource`), per-provider model, saved provider and effort, and secret hiding.
+- [files/core/settings-types.ts.md](files/core/settings-types.ts.md): the shapes `Settings` uses: `UserSettings`, `ModelRole`, `ReasoningEffort`, `KeySource`.
+- [files/core/security/key-store.ts.md](files/core/security/key-store.ts.md): where keys are kept. `KeyStore`, the OS vault through `Bun.secrets`, a memory store for tests, and `KeyRing` with its file fallback.
+- [files/core/llm/verify-key.ts.md](files/core/llm/verify-key.ts.md): checks a pasted key with one tiny model call before it is saved.
 - [files/core/errors.ts.md](files/core/errors.ts.md): the app's error family and `classifyError`, which sorts OpenRouter, OpenAI, Claude and Gemini failures into kinds.
 - [files/core/llm/profiles.ts.md](files/core/llm/profiles.ts.md): one data entry per model provider: env names, saved names, default and suggested models, and links.
 - [files/core/llm/providers.ts.md](files/core/llm/providers.ts.md): the model registry (OpenRouter, OpenAI, Gemini, Claude) and the `Models` factory that follows a mid-session switch.
 - [files/core/llm/choices.ts.md](files/core/llm/choices.ts.md): the shared option lists for the provider, model and effort menus.
-- [files/frontends/terminal/session-loop.ts.md](files/frontends/terminal/session-loop.ts.md): runs one mode session in the terminal and adds the shared `/provider`, `/model`, `/effort`, `/key`, help and exit commands.
+- [files/frontends/terminal/app.ts.md](files/frontends/terminal/app.ts.md): the terminal's main menu. Loads keys, welcomes a new user, and lists modes plus Log in, Log out, Help and Exit.
+- [files/frontends/terminal/login.ts.md](files/frontends/terminal/login.ts.md): logging in and out. Asks for a key, checks it, saves it in the vault; first-run welcome.
+- [files/frontends/terminal/session-loop.ts.md](files/frontends/terminal/session-loop.ts.md): runs one mode session in the terminal and adds the shared `/provider`, `/model`, `/effort`, `/login`, `/logout`, help and exit commands.
 - [files/frontends/terminal/model-menu.ts.md](files/frontends/terminal/model-menu.ts.md): the terminal menus to switch provider, pick a model and set the effort.
 - [files/frontends/terminal/renderer.ts.md](files/frontends/terminal/renderer.ts.md): draws mode events on the terminal, including the plain-words error box.
-- [files/frontends/terminal/prompts.ts.md](files/frontends/terminal/prompts.ts.md): every terminal question: approve changes, allow commands, pick, type, set a provider's key.
+- [files/frontends/terminal/prompts.ts.md](files/frontends/terminal/prompts.ts.md): the everyday terminal questions: approve changes, allow commands, pick, type.
 - [files/frontends/terminal/errors.ts.md](files/frontends/terminal/errors.ts.md): terminal wording for each error kind, naming the active provider.
+- [files/frontends/telegram/app.ts.md](files/frontends/telegram/app.ts.md): starts the Telegram bot; refuses to start without a logged-in key.
 - [files/frontends/telegram/host.ts.md](files/frontends/telegram/host.ts.md): the `ModeHost` for one Telegram chat.
 - [files/frontends/telegram/chat-controller.ts.md](files/frontends/telegram/chat-controller.ts.md): one Telegram chat's mode, session and turn, and the context it hands to the model menus.
 - [files/frontends/telegram/commands.ts.md](files/frontends/telegram/commands.ts.md): the table of Telegram front-end commands (`/menu`, `/stop`, `/provider`, ...).
@@ -141,6 +148,7 @@ Inside a mode, type `/` for the shared commands: **Switch AI provider**, **Chang
 - [concepts/provider-profiles.md](concepts/provider-profiles.md): supporting several AI services with one data entry each, what follows from them automatically, and the "who wins" order for settings.
 - [concepts/environment-variables.md](concepts/environment-variables.md): `process.env`, `.env` files, and keeping secrets out of code.
 - [concepts/user-settings-file.md](concepts/user-settings-file.md): settings saved in your home folder (`~/.yuvi/settings.json`).
+- [concepts/os-credential-vault.md](concepts/os-credential-vault.md): the operating system's safe for secrets (Credential Manager, Keychain, libsecret) and how `Bun.secrets` uses it.
 - [concepts/staged-changes-and-approval.md](concepts/staged-changes-and-approval.md): the stage → approve → apply safety pattern for AI agents.
 - [concepts/unified-diffs.md](concepts/unified-diffs.md): reading `+`/`-` diffs and making them with the `diff` package.
 - [concepts/node-fs-path.md](concepts/node-fs-path.md): files, paths, path-traversal guards, and running shell commands.
