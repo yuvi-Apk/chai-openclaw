@@ -115,7 +115,7 @@ The full definitions, with comments, are in `core/mode.ts`.
 | To change | Do this |
 |---|---|
 | Search engine | Write a class that implements `SearchProvider`, add one entry to `SEARCH_PROVIDERS` in `core/search/providers.ts`, set `YUVI_SEARCH=<name>`. |
-| Model provider | Add one entry to `LLM_PROVIDERS` in `core/llm/providers.ts` that returns an AI SDK model for an id, set `YUVI_LLM=<name>`. |
+| Model provider | Add one entry to `LLM_PROVIDERS` in `core/llm/providers.ts` that returns an AI SDK model for an id, one entry to `LLM_PROFILES` in `core/llm/profiles.ts` (key and model variables, links), and its key name to `Settings.SECRET_ENV_NAMES`; set `YUVI_LLM=<name>`. |
 | History or cache storage | Implement `HistoryStore` or `Cache` and pass it to `createChatEngine` in `modes/chat/factory.ts`. |
 | Front end | Implement `ModeHost` and call `mode.createSession(host)`. `core/testing.ts` has the smallest working example. |
 
@@ -123,10 +123,13 @@ The full definitions, with comments, are in `core/mode.ts`.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `OPENROUTER_API_KEY` | none | Model provider key (can also be saved from the app) |
-| `OPENROUTER_DEFAULT_MODEL` | `openrouter/free` | Main model |
-| `YUVI_MODEL_FAST` | main model | Cheap model for triage, routing and summaries |
-| `YUVI_LLM` | `openrouter` | Model provider |
+| `YUVI_LLM` | `openrouter` | Model provider: `openrouter` or `openai` |
+| `OPENROUTER_API_KEY` | none | OpenRouter key (can also be saved from the app) |
+| `OPENROUTER_DEFAULT_MODEL` | `openrouter/free` | Main model on OpenRouter |
+| `YUVI_MODEL_FAST` | main model | Cheap OpenRouter model for triage, routing and summaries |
+| `OPENAI_API_KEY` | none | OpenAI key, used when `YUVI_LLM=openai` (can also be saved from the app) |
+| `OPENAI_DEFAULT_MODEL` | `gpt-5-mini` | Main model on OpenAI |
+| `OPENAI_FAST_MODEL` | main model | Cheap OpenAI model for triage, routing and summaries |
 | `YUVI_SEARCH` | `auto` | `auto`, `duckduckgo` or `tavily` |
 | `TAVILY_API_KEY` | none | Enables Tavily search |
 | `YUVI_REASONING` | per task | Reasoning effort, or `off` |

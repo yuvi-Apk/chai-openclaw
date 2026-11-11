@@ -5,6 +5,7 @@
  * text; sending it is someone else's job.
  */
 import { formatDuration, formatTokens, shorten } from "../../../core/format";
+import type { LLMProviderProfile } from "../../../core/llm/profiles";
 import type { ModeEvent, SourceItem, TodoItem } from "../../../core/mode";
 import { explainError } from "../errors";
 import { escapeHtml, lineHtml, markdownToHtml } from "./html";
@@ -45,6 +46,9 @@ export class TurnView {
     private errors: string[] = [];
     private callLabels = new Map<string, string>();
     private lastCallId = "";
+
+    /** @param provider names the model provider in error advice */
+    constructor(private readonly provider?: LLMProviderProfile) {}
 
     /** Take in one event. */
     apply(event: ModeEvent): void {
@@ -90,7 +94,7 @@ export class TurnView {
                 this.summary = event.parts;
                 return;
             case "error":
-                this.errors.push(errorHtml(event.message, event.hint));
+                this.errors.push(errorHtml(event.message, event.hint, this.provider));
                 return;
         }
     }
@@ -207,8 +211,8 @@ export class TurnView {
 }
 
 /** An error in plain words, with what the user can do about it. */
-export function errorHtml(raw: string, hint?: string): string {
-    const { problem, fix } = explainError(raw);
+export function errorHtml(raw: string, hint?: string, provider?: LLMProviderProfile): string {
+    const { problem, fix } = explainError(raw, provider);
     const lines = [`✗ <b>${escapeHtml(problem)}</b>`, `<b>What to do:</b> ${escapeHtml(fix)}`];
     const detail = raw.replace(/\s+/g, " ").trim();
     if (detail && detail !== problem) lines.push(`<i>Technical detail: ${short(detail, ERROR_DETAIL_MAX_CHARS)}</i>`);

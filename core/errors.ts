@@ -12,10 +12,10 @@ export class YuviError extends Error {
 }
 
 /** A setting is missing or wrong (unknown provider, missing key). */
-export class ConfigError extends YuviError {}
+export class ConfigError extends YuviError { }
 
 /** A message went past its hard limit of model calls. */
-export class BudgetError extends YuviError {}
+export class BudgetError extends YuviError { }
 
 /** Too many calls in the last minute. */
 export class RateLimitError extends YuviError {
@@ -25,7 +25,7 @@ export class RateLimitError extends YuviError {
 }
 
 /** A mode used a tool it did not declare, or a tool refused to run. */
-export class ToolError extends YuviError {}
+export class ToolError extends YuviError { }
 
 export function errorText(error: unknown): string {
     if (error instanceof Error) return error.message;
@@ -61,11 +61,14 @@ export function classifyError(raw: string): ErrorKind {
     ) {
         return "auth_missing";
     }
-    if (has("invalid api key", "unauthorized", "user not found")) return "auth_rejected";
-    if (has("402", "insufficient credits", "payment required", "more credits")) return "no_credits";
+    if (has("invalid api key", "incorrect api key", "unauthorized", "user not found")) return "auth_rejected";
+    // OpenAI reports an empty balance as a 429, so this must come before rate limits.
+    if (has("402", "insufficient credits", "payment required", "more credits", "exceeded your current quota", "insufficient_quota")) {
+        return "no_credits";
+    }
     if (has("429", "rate limit", "rate-limit", "too many requests")) return "rate_limited";
     if (has("no endpoints found", "tool use", "support tool", "function calling")) return "no_tool_support";
-    if (has("not a valid model", "model not found", "no such model", "404")) return "model_not_found";
+    if (has("not a valid model", "model not found", "no such model", "does not exist or you do not have access", "404")) return "model_not_found";
     if (has("context length", "maximum context", "too many tokens", "context window")) return "context_too_long";
     if (has("fetch failed", "enotfound", "econnrefused", "econnreset", "network", "socket", "getaddrinfo", "unable to connect")) {
         return "network";

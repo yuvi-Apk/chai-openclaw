@@ -92,7 +92,7 @@ function appCommands(
         {
             name: "/key",
             label: "Set API key",
-            hint: typed ? "set your OpenRouter key" : "OpenRouter key",
+            hint: typed ? `set your ${core.settings.llmProfile.label} key` : `${core.settings.llmProfile.label} key`,
             run: async () => void (await setupApiKey(core.settings)),
         },
         { name: "/help", label: "Help", hint: typed ? "what you can do here" : "keys and modes", run: help },
@@ -128,7 +128,7 @@ export async function runModeSession(mode: Mode): Promise<void> {
         );
     }
 
-    const renderer = new TerminalRenderer();
+    const renderer = new TerminalRenderer(core.settings.llmProfile);
     const host: ModeHost = {
         core: grantTools(core, mode.name, mode.tools),
         grants: mode.tools,

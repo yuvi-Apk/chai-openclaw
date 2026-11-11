@@ -14,17 +14,22 @@ _Last updated: 2026-11-11_
 
 ## Just built
 
-- `frontends/telegram/`: long polling, allowlist + PIN lock, live activity
-  message with folded thinking, approval buttons, `/stop`, steering, quick
-  buttons, `/project`, file upload and `/file`, photos to Agent/Plan.
-- Core: `HandleOptions.images` + `Mode.acceptsImages`, `core/security/path-safety.ts`,
-  Telegram token and PIN in `Settings` secrets. Decisions D15–D20.
+- OpenAI as a second model provider (`YUVI_LLM=openai`, `OPENAI_API_KEY`,
+  `OPENAI_DEFAULT_MODEL`, `OPENAI_FAST_MODEL`), `core/llm/profiles.ts`,
+  provider-aware key prompt and error advice. Decision D21. Not yet tried
+  with a real OpenAI key. 281 tests pass, tsc clean.
+
+- `frontends/telegram/` (polling, PIN lock, approvals, files, photos) and its
+  core support (`HandleOptions.images`, `path-safety.ts`). Decisions D15–D20.
 
 ## Next
 
-- User's manual check of the bot: setup steps in README "Telegram", then
-  unlock, Chat with sources, an Agent change (Approve, Pick files, Reject +
-  tell yuvi), `/stop`, a photo, a file upload, `/file`.
+- User: copy the new variables into `.env`, set `YUVI_LLM=openai`, try a Chat
+  question and an Agent change. Maybe a `/` menu item to switch provider.
+- OpenAI cost shows $0: add a price table if an estimate is wanted.
+
+- User's manual check of the bot (README "Telegram"): unlock, Chat, an Agent
+  change with Approve/Reject, `/stop`, a photo, a file upload, `/file`.
 - User's manual check of the interactive terminal (unchanged, still open).
 - Photos in Chat mode; voice notes; "turn finished" alert; daily spend cap.
 - Split `modes/agent/tool-executor.ts` and the long `runLoop` / `runTurn` in
@@ -41,6 +46,5 @@ _Last updated: 2026-11-11_
 - DNS check and fetch are separate in the page fetcher (rebinding gap).
 - API key stored as plain text in `~/.yuvi/settings.json`.
 - Dependencies use `^` ranges and `latest`; not pinned.
-- Prettier config does not match the code; no linter.
-- `docs/files/` documents removed paths (`ai/`, `terminal-ui/`).
+- Prettier config does not match the code; no linter. `docs/files/` lists removed paths.
 - Tavily search untested with a real key.

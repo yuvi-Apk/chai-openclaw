@@ -1,5 +1,6 @@
 /** How text and turns are turned into Telegram messages. No network, no clock. */
 import { describe, expect, test } from "bun:test";
+import { profileFor } from "../../../core/llm/profiles";
 import type { ModeEvent } from "../../../core/mode";
 import { escapeHtml, lineHtml, linesHtml, markdownToHtml, MESSAGE_MAX_CHARS, packBlocks, stripHtml } from "../view/html";
 import { TurnView } from "../view/turn-view";
@@ -175,6 +176,15 @@ describe("the turn view", () => {
         expect(html).toContain('[1] <a href="https://bun.sh/?a=1&amp;b=2">Bun &lt;docs&gt;</a> · 2026-01-02');
         expect(html).toContain("✗ <b>The AI service is busy or you hit its rate limit.</b>");
         expect(html).toContain("<i>searched · 2 calls</i>");
+    });
+
+    test("error advice names the model provider the view was given", () => {
+        const view = new TurnView(profileFor("openai"));
+        apply(view, [{ type: "error", message: "You exceeded your current quota" }]);
+        const html = view.finalBlocks().join("\n\n");
+        expect(html).toContain("The OpenAI account has no credits left for this model.");
+        expect(html).toContain("platform.openai.com/settings/organization/billing");
+        expect(html).not.toContain("openrouter");
     });
 
     test("a question back from the mode replaces the streamed text", () => {

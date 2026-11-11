@@ -222,12 +222,12 @@ export class ChatController {
     async changeModel(): Promise<void> {
         const { settings } = this.deps.core;
         await this.messenger.send(
-            `Current model: <code>${escapeHtml(settings.modelId("main"))}</code>\nSend the new model id (from openrouter.ai/models), or /cancel.`,
+            `Current model: <code>${escapeHtml(settings.modelId("main"))}</code>\nSend the new model id (from ${escapeHtml(settings.llmProfile.modelsUrl)}), or /cancel.`,
         );
         const id = (await this.deps.questions.text(this.deps.chatId))?.trim();
         if (!id) return;
         if (!MODEL_ID.test(id)) return void (await this.messenger.send("✗ That does not look like a model id. Nothing was changed."));
-        settings.save({ model: id });
+        settings.saveModel(id);
         await this.messenger.send(`✓ Model changed to <code>${escapeHtml(settings.modelId("main"))}</code> and saved.`);
     }
 

@@ -5,6 +5,7 @@
  */
 import chalk from "chalk";
 import { formatDuration, formatTokens, shorten } from "../../core/format";
+import type { LLMProviderProfile } from "../../core/llm/profiles";
 import type { ModeEvent, SourceItem, TodoItem } from "../../core/mode";
 import { explainError } from "./errors";
 import { StreamPrinter } from "./stream-printer";
@@ -43,6 +44,9 @@ export class TerminalRenderer {
     onSteer: ((text: string) => void) | undefined;
     /** Called when the user presses Esc or Ctrl+C during a turn. */
     onAbort: (() => void) | undefined;
+
+    /** @param provider names the model provider in error advice */
+    constructor(private readonly provider?: LLMProviderProfile) {}
 
     // ---------- low-level drawing ----------
 
@@ -314,7 +318,7 @@ export class TerminalRenderer {
 
     /** Show an error in plain words, with what the user can do about it. */
     private errorBox(raw: string, hint?: string): void {
-        const { problem, fix } = explainError(raw);
+        const { problem, fix } = explainError(raw, this.provider);
         const lines = ["", chalk.red.bold(`✗ ${problem}`), `  ${chalk.bold("What to do:")} ${fix}`];
         const detail = raw.replace(/\s+/g, " ").trim();
         if (detail && detail !== problem) {

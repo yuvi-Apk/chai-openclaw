@@ -3,6 +3,7 @@
  * a model from its id. To support another provider, add one entry here and
  * select it with YUVI_LLM.
  */
+import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { LanguageModel } from "ai";
 import type { ModelRole, Settings } from "../config";
@@ -14,6 +15,7 @@ export type LLMProviderRegistry = Record<string, (settings: Settings) => ModelFa
 export const LLM_PROVIDERS: LLMProviderRegistry = {
     // The key is read on every call, so a key set mid-session works at once.
     openrouter: (settings) => (modelId) => createOpenRouter({ apiKey: settings.apiKey })(modelId),
+    openai: (settings) => (modelId) => createOpenAI({ apiKey: settings.apiKey })(modelId),
 };
 
 /** Builds models for the configured provider, by exact id or by role. */

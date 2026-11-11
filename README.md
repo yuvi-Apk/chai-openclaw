@@ -86,7 +86,9 @@ are not end-to-end encrypted, so do not paste secrets into them.
 ### Prerequisites
 
 - **Bun** ≥ 1.0 (the runtime & package manager)
-- **OpenRouter API key** — get one at [openrouter.ai](https://openrouter.ai/keys)
+- **An API key** from either provider:
+  - **OpenRouter** — get one at [openrouter.ai](https://openrouter.ai/keys) (has free models), or
+  - **OpenAI** — get one at [platform.openai.com](https://platform.openai.com/api-keys) (prepaid credit)
 
 ### Install
 
@@ -104,13 +106,24 @@ bun install
 Create a `.env` file in the project root:
 
 ```bash
-# Required: Your OpenRouter API key
-OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxx
+# Which provider to use: openrouter (default) or openai
+YUVI_LLM=openrouter
 
-# Optional: Model to use (default: openrouter/free)
+# OpenRouter: key, and optionally the model (default: openrouter/free)
 # See https://openrouter.ai/models for available models
+OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxx
 OPENROUTER_DEFAULT_MODEL=openrouter/auto
+
+# OpenAI: key, and optionally the model (default: gpt-5-mini)
+# See https://platform.openai.com/docs/models for available models
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxx
+OPENAI_DEFAULT_MODEL=gpt-5-mini
 ```
+
+Both keys can be set at once; `YUVI_LLM` picks which one is used. Each
+provider keeps its own model setting. With OpenAI the cost line shows $0,
+because OpenAI does not report a price per call; check your spending on the
+OpenAI usage page.
 
 > **Tip:** You can also export these in your shell profile (`.bashrc`, `.zshrc`, etc.) instead of using `.env`.
 
@@ -199,9 +212,13 @@ Hello from yuvi!
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | ✅ | — | Your OpenRouter API key (can also be saved from inside the app) |
+| `YUVI_LLM` | ❌ | `openrouter` | Model provider: `openrouter` or `openai` |
+| `OPENROUTER_API_KEY` | with OpenRouter | — | Your OpenRouter API key (can also be saved from inside the app) |
 | `OPENROUTER_DEFAULT_MODEL` | ❌ | `openrouter/free` | Model identifier (see [OpenRouter models](https://openrouter.ai/models)) |
-| `YUVI_MODEL_FAST` | ❌ | main model | Cheap model for triage, routing and summaries |
+| `YUVI_MODEL_FAST` | ❌ | main model | Cheap OpenRouter model for triage, routing and summaries |
+| `OPENAI_API_KEY` | with OpenAI | — | Your OpenAI API key (can also be saved from inside the app) |
+| `OPENAI_DEFAULT_MODEL` | ❌ | `gpt-5-mini` | Model identifier (see [OpenAI models](https://platform.openai.com/docs/models)) |
+| `OPENAI_FAST_MODEL` | ❌ | main model | Cheap OpenAI model for triage, routing and summaries |
 | `TAVILY_API_KEY` | ❌ | — | Use Tavily for web search instead of DuckDuckGo |
 | `YUVI_LOG` | ❌ | off | `1` writes a usage log to `~/.yuvi/logs/` (no message text, secrets redacted) |
 | `SKILLS_DIRS` | ❌ | — | Semicolon-separated extra directories to scan for `SKILL.md` files |

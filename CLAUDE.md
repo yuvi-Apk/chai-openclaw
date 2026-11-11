@@ -56,6 +56,9 @@ shared helpers in `core/`. Tests go in a `__tests__/` folder next to the code.
 - Ask before adding any dependency; pin exact versions.
 - Architectural change: append an entry to `docs/decisions.md`.
 - End of a significant task: update `docs/progress.md` (keep it under 50 lines), then summarise.
+- `.env` stays blocked for Claude. If a change adds, renames or removes an env
+  variable, end the summary with a ready-to-paste `.env` block (name, dummy or
+  default value, one-line comment) and say which lines to delete; the user edits `.env`.
 - The user commits and pushes themselves. Never run `git commit` or `git push`.
 - New rule: put it in exactly one file; merge or delete any older rule it replaces.
 

@@ -117,7 +117,7 @@ export class TelegramHost implements ModeHost {
             case "line":
                 return [lineHtml(event.line)];
             case "error":
-                return [errorHtml(event.message, event.hint)];
+                return [errorHtml(event.message, event.hint, this.core.settings.llmProfile)];
             case "progress":
                 return [`<b>${escapeHtml(event.tag)}</b> ${escapeHtml(event.text)}`];
             case "token": {
@@ -137,7 +137,7 @@ export class TelegramHost implements ModeHost {
     // ---------- turn lifecycle ----------
 
     beginTurn(): void {
-        this.turn = { view: new TurnView(), live: undefined, startedAt: this.clock.now() };
+        this.turn = { view: new TurnView(this.core.settings.llmProfile), live: undefined, startedAt: this.clock.now() };
         void this.messenger.typing();
     }
 

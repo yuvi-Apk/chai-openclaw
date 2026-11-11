@@ -14,6 +14,10 @@ paths:
 ## Secrets
 
 - Never read, write, print or paste `.env`, `.env.*` or `~/.yuvi/settings.json`.
+- Every key, token, PIN, user id, URL or tunable setting comes from an env
+  variable read in `core/config.ts`, never a value written in code. Each new
+  variable is listed in the README settings table and handed to the user as a
+  `.env` block (see CLAUDE.md, Workflow).
 - Keys reach code only through `Settings` (`apiKey`, `tavilyApiKey`, `secrets()`).
 - A new secret needs both: its env name in `Settings.SECRET_ENV_NAMES` (removed
   from shell commands by `childEnv()`) and its value in `Settings.secrets()`

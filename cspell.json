@@ -16,7 +16,17 @@
     "openclaw",
     "wakeup",
     "colour",
-    "openrouter"
+    "openrouter",
+    "frontends",
+    "duckduckgo",
+    "ndash",
+    "apos",
+    "hellip",
+    "rsquo",
+    "lsquo",
+    "rdquo",
+    "ldquo",
+    "tavily"
   ],
   "ignoreRegExpList": ["\\b[0-9a-f]{20}\\b"],
   "ignorePaths": ["node_modules", "dist", "bun.lock"]

@@ -16,6 +16,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@ai-sdk/openai": "4.0.114",
     "@clack/core": "^1.5.1",
     "@clack/prompts": "^1.8.1",
     "@openrouter/ai-sdk-provider": "^3.1.0",

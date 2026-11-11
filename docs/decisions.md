@@ -81,3 +81,11 @@ links. The agent's own path check should move to it (see progress.md).
 **D20 · 2026-11 · "Reject + tell yuvi what to do" runs the instruction as the next turn.**
 The agent ends its turn when all changes are refused, so a mid-turn correction
 would be dropped. The front end sends the instruction as a new message instead.
+
+**D21 · 2026-11 · OpenAI is a second model provider, picked with `YUVI_LLM=openai`.**
+`core/llm/profiles.ts` holds plain data per provider: its key and model
+variables, where they are saved, and the links front ends show. `Settings.apiKey`
+and `modelId()` follow the active profile, so OpenRouter ids never reach OpenAI.
+Each provider has its own saved fields (`openaiApiKey`, `openaiModel`, ...), and
+every provider key is redacted, even when not in use. OpenAI does not report a
+cost per call, so the cost shown is $0; tokens are still counted.

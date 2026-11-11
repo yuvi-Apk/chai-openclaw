@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { homedir } from "node:os";
+import { LLM_PROFILES, profileFor, type LLMProviderProfile } from "./llm/profiles";
 
 export type ModelRole = "main" | "fast";
 
@@ -17,14 +18,17 @@ const REASONING_EFFORTS: ReasoningEffort[] = ["none", "minimal", "low", "medium"
 
 /** Settings saved for this user, so they work in every project. */
 export interface UserSettings {
+    /** OpenRouter key and models (the names predate other providers). */
     apiKey?: string;
     model?: string;
     fastModel?: string;
+    openaiApiKey?: string;
+    openaiModel?: string;
+    openaiFastModel?: string;
 }
 
 type Env = Record<string, string | undefined>;
 
-const DEFAULT_MODEL = "openrouter/free";
 const DEFAULT_LLM_PROVIDER = "openrouter";
 const DEFAULT_SEARCH_PROVIDER = "auto";
 /** A secret shorter than this is not worth hiding and would hide too much. */
@@ -105,8 +109,30 @@ export class Settings {
 
     // ---------- settings shared by every mode ----------
 
+    /** Settings and links of the model provider in use (YUVI_LLM). */
+    get llmProfile(): LLMProviderProfile {
+        return profileFor(this.llmProvider);
+    }
+
+    /** A value saved during this run, then the environment, then the saved file. */
+    private pick(envName: string, saved: keyof UserSettings): string {
+        return this.changed[saved] || this.env[envName] || this.saved[saved] || "";
+    }
+
+    /** The key of the model provider in use. */
     get apiKey(): string {
-        return this.changed.apiKey || this.env.OPENROUTER_API_KEY || this.saved.apiKey || "";
+        const profile = this.llmProfile;
+        return this.pick(profile.keyEnv, profile.savedKey);
+    }
+
+    /** Save a key for the model provider in use. */
+    saveApiKey(key: string): void {
+        this.save({ [this.llmProfile.savedKey]: key });
+    }
+
+    /** Save the main model for the model provider in use. */
+    saveModel(modelId: string): void {
+        this.save({ [this.llmProfile.savedModel]: modelId });
     }
 
     get tavilyApiKey(): string {
@@ -124,15 +150,15 @@ export class Settings {
     }
 
     /**
-     * The model id for a role.
-     * main - planning, editing, answering (OPENROUTER_DEFAULT_MODEL)
-     * fast - triage, routing, summaries (YUVI_MODEL_FAST, falls back to main)
+     * The model id for a role, for the model provider in use.
+     * main - planning, editing, answering (OPENROUTER_DEFAULT_MODEL / OPENAI_DEFAULT_MODEL)
+     * fast - triage, routing, summaries (YUVI_MODEL_FAST / OPENAI_FAST_MODEL, falls back to main)
      */
     modelId(role: ModelRole = "main"): string {
-        const main =
-            this.changed.model || this.env.OPENROUTER_DEFAULT_MODEL || this.saved.model || DEFAULT_MODEL;
+        const profile = this.llmProfile;
+        const main = this.pick(profile.modelEnv, profile.savedModel) || profile.defaultModel;
         if (role === "main") return main;
-        return this.changed.fastModel || this.env.YUVI_MODEL_FAST || this.saved.fastModel || main;
+        return this.pick(profile.fastModelEnv, profile.savedFastModel) || main;
     }
 
     /**
@@ -167,7 +193,9 @@ export class Settings {
 
     /** Values that must never be printed, logged or handed to other programs. */
     secrets(): string[] {
-        return [this.apiKey, this.tavilyApiKey, this.telegramToken, this.telegramPin].filter(
+        // Every provider's key, not only the active one: both may be set.
+        const providerKeys = Object.values(LLM_PROFILES).map((p) => this.pick(p.keyEnv, p.savedKey));
+        return [...new Set([...providerKeys, this.tavilyApiKey, this.telegramToken, this.telegramPin])].filter(
             (value) => value.length >= MIN_SECRET_LENGTH,
         );
     }
@@ -185,6 +213,7 @@ export class Settings {
     /** Names of the environment variables that hold those values. */
     static readonly SECRET_ENV_NAMES = [
         "OPENROUTER_API_KEY",
+        "OPENAI_API_KEY",
         "TAVILY_API_KEY",
         "TELEGRAM_BOT_TOKEN",
         "YUVI_TELEGRAM_PIN",
