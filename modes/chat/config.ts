@@ -1,18 +1,15 @@
 /**
  * Every limit, default and model choice of chat mode, in one place.
- * Each value can be overridden with an environment variable.
+ * Values with a YUVI_CHAT_ name can be overridden in the environment; they
+ * are read and validated through the shared Settings.
  */
-import { getModelId } from "../../ai";
+import type { Settings } from "../../core/config";
 
 export interface ChatConfig {
     /** Cheap model for routing, planning, sufficiency checks and summaries. */
     routerModel: () => string;
     /** Stronger model for the final answer. */
     answerModel: () => string;
-    /** Which LLM adapter the factory builds. */
-    llmProvider: string;
-    /** Which search adapter the factory builds: "auto", "duckduckgo" or "tavily". */
-    searchProvider: string;
 
     /** Most searches one question is split into. */
     maxSubQueries: number;
@@ -57,34 +54,18 @@ export interface ChatConfig {
         summary: number;
     };
 
-    /** Give up on one model call after this long. */
-    callTimeoutMs: number;
-    /** Give up on one search or page fetch after this long. */
-    fetchTimeoutMs: number;
-    /** Stop downloading a page after this many bytes. */
-    maxPageBytes: number;
     /** Show routing and token usage after every answer. */
     debug: boolean;
 }
 
-/** A whole number from the environment, kept inside [min, max]. */
-function envNumber(name: string, fallback: number, min: number, max: number): number {
-    const value = Number(process.env[name]);
-    if (!Number.isFinite(value) || process.env[name] === undefined || process.env[name] === "") {
-        return fallback;
-    }
-    return Math.max(min, Math.min(max, Math.round(value)));
-}
-
 const MINUTE = 60_000;
 
-export function loadChatConfig(): ChatConfig {
+export function loadChatConfig(settings: Settings): ChatConfig {
+    const envNumber = settings.number.bind(settings);
     return {
         // Read on every call, so a model changed mid-session takes effect at once.
-        routerModel: () => process.env.YUVI_CHAT_ROUTER_MODEL || getModelId("fast"),
-        answerModel: () => process.env.YUVI_CHAT_MODEL || getModelId("main"),
-        llmProvider: process.env.YUVI_CHAT_LLM || "openrouter",
-        searchProvider: process.env.YUVI_CHAT_SEARCH || "auto",
+        routerModel: () => settings.string("YUVI_CHAT_ROUTER_MODEL") || settings.modelId("fast"),
+        answerModel: () => settings.string("YUVI_CHAT_MODEL") || settings.modelId("main"),
 
         maxSubQueries: envNumber("YUVI_CHAT_MAX_QUERIES", 3, 1, 5),
         resultsPerQuery: envNumber("YUVI_CHAT_RESULTS", 4, 1, 10),
@@ -120,9 +101,6 @@ export function loadChatConfig(): ChatConfig {
             summary: 600,
         },
 
-        callTimeoutMs: 90_000,
-        fetchTimeoutMs: 10_000,
-        maxPageBytes: 600_000,
-        debug: /^(1|true|on)$/i.test(process.env.YUVI_CHAT_DEBUG || ""),
+        debug: settings.flag("YUVI_CHAT_DEBUG"),
     };
 }

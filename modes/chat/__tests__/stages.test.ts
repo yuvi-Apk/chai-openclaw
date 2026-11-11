@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { MemoryCache } from "../adapters/cache-memory";
-import { MemoryHistory } from "../adapters/history-memory";
-import { parseDuckDuckGoHtml } from "../adapters/search-duckduckgo";
+import { MemoryCache } from "../../../core/cache";
+import { MemoryHistory } from "../../../core/history";
+import { parseDuckDuckGoHtml } from "../../../core/search/duckduckgo";
 import { parsePlan } from "../stages/planner";
 import { parseRouterReply, routeByRules } from "../stages/router";
 import { mergeResults, normaliseUrl } from "../stages/searcher";

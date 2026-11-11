@@ -2,10 +2,10 @@
  * Stage 4: run the searches in parallel and squeeze the results down to a
  * small, de-duplicated list that fits the evidence token budget.
  */
+import type { Cache } from "../../../core/cache";
+import type { SearchProvider, Source } from "../../../core/search/types";
+import { RateLimiter } from "../../../core/security/limits";
 import type { ChatConfig } from "../config";
-import { RateLimiter } from "../guardrails";
-import type { Cache, SearchProvider } from "../interfaces";
-import type { Source } from "../types";
 import { looksTimeSensitive } from "./router";
 
 export interface Evidence {

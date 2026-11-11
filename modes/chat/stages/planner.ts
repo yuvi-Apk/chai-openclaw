@@ -3,7 +3,7 @@
  * One cheap call rewrites the question, spots real ambiguity and splits the
  * request into a few focused search strings.
  */
-import type { HistoryStore } from "../interfaces";
+import type { HistoryStore } from "../../../core/history";
 import { plannerPrompt } from "../prompts";
 import type { RouteDecision, SearchPlan } from "../types";
 import { compactContext, completeJsonStep, extractJson, textField, type StageContext } from "./shared";

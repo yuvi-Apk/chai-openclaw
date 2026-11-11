@@ -3,7 +3,7 @@
  * tuned without touching the pipeline. Prompts are short on purpose: every
  * word here is paid for on every call.
  */
-import { UNTRUSTED_RULE } from "./guardrails";
+import { UNTRUSTED_RULE } from "../../core/security/untrusted";
 
 /** The direct-answer model replies with this when it needs fresh data. */
 export const NEED_SEARCH_SIGNAL = "NEED_SEARCH";

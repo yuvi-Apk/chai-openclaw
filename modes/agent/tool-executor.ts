@@ -1,11 +1,24 @@
+/**
+ * The agent's hands: every file read, staged edit, search and command goes
+ * through this class. Edits are kept in memory ("staged") until the user
+ * approves them, and paths are checked so nothing outside the workspace or
+ * on the exclude list is touched.
+ */
 import fs from "node:fs";
 import path from "node:path";
-import { homedir } from "node:os";
-import { spawn } from "node:child_process";
 import { diffLines } from "diff";
-import type { AgentConfig, ActionLog } from "./types";
+import { clipMiddle } from "../../core/security/limits";
 import { ActionTracker } from "./action-tracker";
 import { formatPatch } from "./diff-view";
+import { runShellCommand, type CommandResult } from "./executor/shell";
+import { findSkillFiles, readSkillFile, skillRoots } from "./executor/skills";
+import type { AgentConfig, ActionLog } from "./types";
+
+export type { CommandResult };
+
+const DEFAULT_COMMAND_TIMEOUT_MS = 120_000;
+/** How much of a command's output is kept in the action log. */
+const COMMAND_LOG_TAIL_CHARS = 2000;
 
 const TEXT_EXT = new Set([
     ".ts",
@@ -43,14 +56,6 @@ const SCRIPT_LOADERS: Record<string, "ts" | "tsx" | "js" | "jsx"> = {
 function isProbablyTextFile(filePath: string): boolean {
     const ext = path.extname(filePath).toLowerCase();
     return TEXT_EXT.has(ext) || ext === "";
-}
-
-export interface CommandResult {
-    exitCode: number | null;
-    output: string;
-    timedOut: boolean;
-    aborted: boolean;
-    durationMs: number;
 }
 
 interface CheckpointEntry {
@@ -123,14 +128,7 @@ export class ToolExecutor {
 
     /** Shorten a long tool result, keeping the start and the end. */
     clip(text: string, max = this.config.maxToolOutputChars): string {
-        if (text.length <= max) return text;
-        const head = Math.floor(max * 0.6);
-        const tail = max - head;
-        return (
-            text.slice(0, head) +
-            `\n\n… [${text.length - max} characters omitted] …\n\n` +
-            text.slice(text.length - tail)
-        );
+        return clipMiddle(text, max);
     }
 
     private globToRegex(g: string): RegExp {
@@ -688,160 +686,42 @@ export class ToolExecutor {
         return this.clip(rows.join("\n")) + more;
     }
 
-    analyzeCodebase(rootRel: string): string {
-        const rootAbs = this.resolveSafe(rootRel);
-        if (!fs.existsSync(rootAbs))
-            throw new Error(`analyze_codebase: not found: ${rootRel}`);
-
-        let files = 0;
-        let dirs = 0;
-        const walk = (dir: string) => {
-            for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
-                const full = path.join(dir, ent.name);
-                const relP = path.relative(this.config.codebasePath, full);
-                if (this.excluded(relP)) continue;
-                if (ent.isDirectory()) {
-                    dirs++;
-                    walk(full);
-                } else {
-                    files++;
-                }
-            }
-        };
-        if (fs.statSync(rootAbs).isDirectory()) walk(rootAbs);
-        else files = 1;
-
-        const summary = `Files: ${files} | Directories: ${dirs}`;
-        this.tracker.log({
-            type: "code_analysis",
-            path: this.norm(rootRel),
-            details: { after: summary, toolName: "analyze_codebase" },
-            status: "executed",
-        });
-        return summary;
-    }
-
     /**
      * Run a shell command in the workspace right now and return its output,
      * so the agent can read the result and react to it.
      */
-    runCommand(
+    async runCommand(
         command: string,
-        opts: { timeoutMs?: number; signal?: AbortSignal } = {},
+        opts: { timeoutMs?: number; signal?: AbortSignal | undefined } = {},
     ): Promise<CommandResult> {
         if (!this.config.tools.allowShellExecution)
             throw new Error("Shell execution disabled");
-        const timeoutMs = opts.timeoutMs ?? 120_000;
-        const started = Date.now();
-        const MAX_BUFFER = 2 * 1024 * 1024;
-
-        return new Promise((resolve) => {
-            const child = spawn(command, {
-                shell: true,
-                cwd: this.config.codebasePath,
-                windowsHide: true,
-                stdio: ["ignore", "pipe", "pipe"],
-                env: { ...process.env, CI: "1", FORCE_COLOR: "0", NO_COLOR: "1" },
-            });
-
-            let output = "";
-            let timedOut = false;
-            let aborted = false;
-            let settled = false;
-
-            const collect = (chunk: Buffer) => {
-                output += chunk.toString("utf8");
-                if (output.length > MAX_BUFFER) output = output.slice(-MAX_BUFFER);
-            };
-            child.stdout?.on("data", collect);
-            child.stderr?.on("data", collect);
-
-            const kill = () => {
-                if (child.pid === undefined) return;
-                if (process.platform === "win32") {
-                    spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
-                        windowsHide: true,
-                        stdio: "ignore",
-                    });
-                } else {
-                    child.kill("SIGTERM");
-                }
-            };
-
-            const timer = setTimeout(() => {
-                timedOut = true;
-                kill();
-            }, timeoutMs);
-            const onAbort = () => {
-                aborted = true;
-                kill();
-            };
-            opts.signal?.addEventListener("abort", onAbort, { once: true });
-
-            const finish = (exitCode: number | null) => {
-                if (settled) return;
-                settled = true;
-                clearTimeout(timer);
-                opts.signal?.removeEventListener("abort", onAbort);
-                const clean = output.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").trim();
-                this.tracker.log({
-                    type: "tool_execute",
-                    path: "shell",
-                    details: {
-                        command,
-                        toolName: "run_command",
-                        toolResult: clean.slice(-2000),
-                    },
-                    status: "executed",
-                });
-                resolve({
-                    exitCode,
-                    output: clean,
-                    timedOut,
-                    aborted,
-                    durationMs: Date.now() - started,
-                });
-            };
-
-            child.on("error", (err) => {
-                output += `\n${String(err)}`;
-                finish(null);
-            });
-            child.on("close", (code) => finish(code));
+        const result = await runShellCommand(command, {
+            cwd: this.config.codebasePath,
+            env: this.config.commandEnv,
+            timeoutMs: opts.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
+            signal: opts.signal,
         });
+        this.tracker.log({
+            type: "tool_execute",
+            path: "shell",
+            details: {
+                command,
+                toolName: "run_command",
+                toolResult: result.output.slice(-COMMAND_LOG_TAIL_CHARS),
+            },
+            status: "executed",
+        });
+        return result;
     }
 
-    skillRoots(): string[] {
-        const extra =
-            process.env.SKILLS_DIRS?.split(/[;]/)
-                .map((s) => s.trim())
-                .filter(Boolean) ?? [];
-        return [
-            ...extra,
-            path.join(homedir(), ".cursor/skills-cursor"),
-            path.join(homedir(), ".claude/skills"),
-        ];
+    private skillRoots(): string[] {
+        return skillRoots(this.config.skillDirs);
     }
 
     /** Absolute paths of every SKILL.md under the skill roots. */
     skillFiles(): string[] {
-        const lines: string[] = [];
-        for (const root of this.skillRoots()) {
-            if (!fs.existsSync(root)) continue;
-            const walk = (dir: string) => {
-                for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
-                    const full = path.join(dir, ent.name);
-                    if (ent.isDirectory()) walk(full);
-                    else if (ent.name === "SKILL.md") lines.push(full);
-                }
-            };
-            try {
-                walk(root);
-            } catch {
-                // unreadable skill folder: skip it
-            }
-        }
-        return lines.sort();
+        return findSkillFiles(this.skillRoots());
     }
 
     listSkills(): string {
@@ -856,22 +736,14 @@ export class ToolExecutor {
     }
 
     readSkill(skillPath: string): string {
-        const abs = path.isAbsolute(skillPath)
-            ? path.normalize(skillPath)
-            : path.normalize(path.resolve(this.config.codebasePath, skillPath));
-        const allowed = this.skillRoots().some((root) => {
-            const r = path.resolve(root);
-            return abs === r || abs.startsWith(r + path.sep);
-        });
-        if (!allowed) throw new Error("read_skill: outside skill roots");
-        const text = fs.readFileSync(abs, "utf8");
+        const skill = readSkillFile(skillPath, this.skillRoots(), this.config.codebasePath);
         this.tracker.log({
             type: "code_analysis",
-            path: abs,
+            path: skill.path,
             details: { toolName: "read_skill" },
             status: "executed",
         });
-        return this.clip(text);
+        return this.clip(skill.text);
     }
 
     hasStaged(): boolean {

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { generateText, type LanguageModel, type ModelMessage } from "ai";
+import type { ModelMessage } from "ai";
+import type { LLMClient } from "../../core/llm/types";
 import type { ToolExecutor } from "./tool-executor";
 
 const yuviDir = (root: string) => path.join(root, ".yuvi");
@@ -197,6 +198,9 @@ export function pruneToolOutputs(
     return { messages: next, pruned };
 }
 
+/** A long transcript takes a while to summarise; give up after this. */
+const SUMMARY_TIMEOUT_MS = 180_000;
+
 function messageToText(message: ModelMessage): string {
     if (typeof message.content === "string") {
         return `${message.role.toUpperCase()}: ${message.content}`;
@@ -226,8 +230,9 @@ function messageToText(message: ModelMessage): string {
  */
 export async function summarizeHistory(
     messages: ModelMessage[],
-    model: LanguageModel,
-    abortSignal?: AbortSignal,
+    llm: LLMClient,
+    model: string,
+    signal?: AbortSignal,
 ): Promise<ModelMessage[]> {
     const userIndexes = messages
         .map((m, i) => (m.role === "user" ? i : -1))
@@ -240,15 +245,17 @@ export async function summarizeHistory(
     let transcript = older.map(messageToText).join("\n\n");
     if (transcript.length > 80_000) transcript = transcript.slice(-80_000);
 
-    const { text } = await generateText({
+    const prompt =
+        "Summarise this coding-agent conversation so the agent can continue the work without it.\n" +
+        "Keep: what the user asked for, decisions made, files read and changed (with paths), " +
+        "commands run and their results, problems found, and what is still open.\n" +
+        "Be factual and compact. Use short bullet points.\n\n" +
+        transcript;
+    const { text } = await llm.complete({
         model,
-        abortSignal,
-        prompt:
-            "Summarise this coding-agent conversation so the agent can continue the work without it.\n" +
-            "Keep: what the user asked for, decisions made, files read and changed (with paths), " +
-            "commands run and their results, problems found, and what is still open.\n" +
-            "Be factual and compact. Use short bullet points.\n\n" +
-            transcript,
+        messages: [{ role: "user", content: prompt }],
+        timeoutMs: SUMMARY_TIMEOUT_MS,
+        ...(signal ? { signal } : {}),
     });
 
     return [

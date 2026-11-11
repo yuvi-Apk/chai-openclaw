@@ -1,0 +1,191 @@
+import { describe, expect, test } from "bun:test";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { createCore } from "../compose";
+import { Settings } from "../config";
+import { BudgetError, classifyError, ConfigError, errorText, RateLimitError, YuviError } from "../errors";
+import { withQuietSdkErrors } from "../llm/quiet-sdk";
+import type { LLMClient } from "../llm/types";
+import { clipMiddle } from "../security/limits";
+import { redactSecrets, scrubEnv } from "../security/redact";
+import type { SearchProvider } from "../search/types";
+import { readCost, totalUsage } from "../usage";
+
+describe("settings", () => {
+    test("defaults apply when nothing is set", () => {
+        const settings = new Settings({}, null);
+        expect(settings.apiKey).toBe("");
+        expect(settings.modelId("main")).toBe("openrouter/free");
+        expect(settings.modelId("fast")).toBe("openrouter/free");
+        expect(settings.llmProvider).toBe("openrouter");
+        expect(settings.searchProvider).toBe("auto");
+        expect(settings.reasoning).toBeUndefined();
+        expect(settings.logEnabled).toBe(false);
+        expect(settings.secrets()).toEqual([]);
+    });
+
+    test("numbers are validated and kept inside their range", () => {
+        const settings = new Settings({ A: "7", B: "999", C: "abc", D: "", E: "2.6" }, null);
+        expect(settings.number("A", 3, 1, 10)).toBe(7);
+        expect(settings.number("B", 3, 1, 10)).toBe(10);
+        expect(settings.number("C", 3, 1, 10)).toBe(3);
+        expect(settings.number("D", 3, 1, 10)).toBe(3);
+        expect(settings.number("E", 3, 1, 10)).toBe(3);
+        expect(settings.number("MISSING", 3, 1, 10)).toBe(3);
+    });
+
+    test("flags, switches and lists", () => {
+        const settings = new Settings({ ON: "true", OFF: "Off", DIRS: " a ; b;;" , YUVI_REASONING: "HIGH" }, null);
+        expect(settings.flag("ON")).toBe(true);
+        expect(settings.flag("OFF")).toBe(false);
+        expect(settings.isOff("OFF")).toBe(true);
+        expect(settings.isOff("ON")).toBe(false);
+        expect(settings.list("DIRS", ";")).toEqual(["a", "b"]);
+        expect(settings.reasoning).toBe("high");
+    });
+
+    test("the environment beats the saved file, and a value saved now beats both", () => {
+        const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "yuvi-settings-")), "settings.json");
+        fs.writeFileSync(file, JSON.stringify({ apiKey: "saved-key-123", model: "saved/model", fastModel: "saved/fast" }));
+
+        const fromFile = new Settings({}, file);
+        expect(fromFile.apiKey).toBe("saved-key-123");
+        expect(fromFile.modelId("main")).toBe("saved/model");
+        expect(fromFile.modelId("fast")).toBe("saved/fast");
+
+        const withEnv = new Settings({ OPENROUTER_API_KEY: "env-key-12345", OPENROUTER_DEFAULT_MODEL: "env/model" }, file);
+        expect(withEnv.apiKey).toBe("env-key-12345");
+        expect(withEnv.modelId("main")).toBe("env/model");
+
+        withEnv.save({ model: "picked/model" });
+        expect(withEnv.modelId("main")).toBe("picked/model");
+        expect(JSON.parse(fs.readFileSync(file, "utf8")).model).toBe("picked/model");
+        expect(new Settings({}, file).modelId("main")).toBe("picked/model");
+        fs.rmSync(path.dirname(file), { recursive: true, force: true });
+    });
+
+    test("saving never touches the process environment", () => {
+        const before = process.env.OPENROUTER_API_KEY;
+        new Settings({}, null).save({ apiKey: "in-memory-key-1234" });
+        expect(process.env.OPENROUTER_API_KEY).toBe(before);
+    });
+
+    test("secrets are listed for redaction", () => {
+        const settings = new Settings({ OPENROUTER_API_KEY: "sk-or-long-enough", TAVILY_API_KEY: "short" }, null);
+        expect(settings.secrets()).toEqual(["sk-or-long-enough"]);
+    });
+});
+
+describe("errors", () => {
+    test("every error is a YuviError with its own name", () => {
+        expect(new BudgetError("x")).toBeInstanceOf(YuviError);
+        expect(new BudgetError("x").name).toBe("BudgetError");
+        expect(new RateLimitError().message).toContain("rate limit");
+        expect(errorText(new ConfigError("bad"))).toBe("bad");
+    });
+
+    test("provider failures are recognised", () => {
+        expect(classifyError("No auth credentials found")).toBe("auth_missing");
+        expect(classifyError("401 from model gateway")).toBe("unknown");
+        expect(classifyError("User not found")).toBe("auth_rejected");
+        expect(classifyError("Payment Required")).toBe("no_credits");
+        expect(classifyError("429 Too Many Requests")).toBe("rate_limited");
+        expect(classifyError("No endpoints found that support tool use")).toBe("no_tool_support");
+        expect(classifyError("model not found")).toBe("model_not_found");
+        expect(classifyError("maximum context length")).toBe("context_too_long");
+        expect(classifyError("ECONNRESET")).toBe("network");
+        expect(classifyError("request timed out")).toBe("timeout");
+        expect(classifyError("502 Bad Gateway")).toBe("provider_down");
+        expect(classifyError("???")).toBe("unknown");
+    });
+});
+
+describe("usage", () => {
+    test("records add up", () => {
+        const record = { step: "answer", model: "m", inputTokens: 100, outputTokens: 20, cost: 0.001, ms: 5 };
+        expect(totalUsage([record, record])).toEqual({ calls: 2, inputTokens: 200, outputTokens: 40, cost: 0.002 });
+        expect(totalUsage([])).toEqual({ calls: 0, inputTokens: 0, outputTokens: 0, cost: 0 });
+    });
+
+    test("cost is read from provider metadata when present", () => {
+        expect(readCost({ openrouter: { usage: { cost: 0.0042 } } })).toBe(0.0042);
+        expect(readCost({ openrouter: {} })).toBe(0);
+        expect(readCost(undefined)).toBe(0);
+    });
+});
+
+describe("security helpers", () => {
+    test("known secrets and key-shaped text are hidden", () => {
+        const clean = redactSecrets("my key is hunter2-hunter2 and sk-abcdefghijklmnopqrstu", ["hunter2-hunter2"]);
+        expect(clean).toBe("my key is [redacted] and [redacted]");
+    });
+
+    test("named variables are removed from an environment copy", () => {
+        const env = { OPENROUTER_API_KEY: "k", TAVILY_API_KEY: "t", PATH: "/bin" };
+        expect(scrubEnv(env, Settings.SECRET_ENV_NAMES)).toEqual({ PATH: "/bin" });
+        expect(env.OPENROUTER_API_KEY).toBe("k");
+    });
+
+    test("long text keeps its start and end", () => {
+        expect(clipMiddle("short", 10)).toBe("short");
+        expect(clipMiddle("a".repeat(30), 10)).toBe(`${"a".repeat(6)}\n\n… [20 characters omitted] …\n\n${"a".repeat(4)}`);
+    });
+
+    test("console.error comes back after overlapping quiet calls", async () => {
+        const original = console.error;
+        await Promise.all([
+            withQuietSdkErrors(async () => expect(console.error).not.toBe(original)),
+            withQuietSdkErrors(async () => undefined),
+        ]);
+        expect(console.error).toBe(original);
+        await withQuietSdkErrors(async () => {
+            throw new Error("x");
+        }).catch(() => undefined);
+        expect(console.error).toBe(original);
+    });
+});
+
+describe("composition", () => {
+    const fakeSearch = (name: string): SearchProvider => ({ name, search: async () => [] });
+
+    test("an unknown provider is a clear configuration error", () => {
+        expect(() => createCore(new Settings({ YUVI_SEARCH: "bing" }, null)).search).toThrow(
+            'Unknown search provider "bing". Available: duckduckgo, tavily, auto.',
+        );
+        expect(() => createCore(new Settings({ YUVI_LLM: "nope" }, null)).models).toThrow(ConfigError);
+        expect(() => createCore(new Settings({ YUVI_SEARCH: "tavily" }, null)).search).toThrow("TAVILY_API_KEY is not set");
+    });
+
+    test("the search engine follows the settings", () => {
+        expect(createCore(new Settings({}, null)).search.name).toBe("duckduckgo");
+        expect(createCore(new Settings({ TAVILY_API_KEY: "tvly-key-123456" }, null)).search.name).toBe("tavily");
+        expect(createCore(new Settings({ YUVI_SEARCH: "duckduckgo", TAVILY_API_KEY: "tvly-key-123456" }, null)).search.name).toBe("duckduckgo");
+    });
+
+    test("a wrongly set search provider does not break a mode that never searches", () => {
+        const core = createCore(new Settings({ YUVI_SEARCH: "bing" }, null));
+        expect(core.settings.modelId()).toBe("openrouter/free");
+        expect(core.models).toBeDefined();
+    });
+
+    test("a new provider is one registry entry plus one setting", async () => {
+        const settings = new Settings({ YUVI_SEARCH: "brave", YUVI_LLM: "local" }, null);
+        const core = createCore(settings, {
+            searchProviders: { brave: () => fakeSearch("brave") },
+            llmProviders: { local: () => (modelId) => ({ modelId }) as never },
+        });
+        expect(core.search.name).toBe("brave");
+        expect(core.models.byId("tiny")).toEqual({ modelId: "tiny" } as never);
+    });
+
+    test("ready-made parts are used as given", async () => {
+        const llm: LLMClient = {
+            complete: async () => ({ text: "hi", inputTokens: 1, outputTokens: 1, cost: 0 }),
+            stream: async () => ({ text: "hi", inputTokens: 1, outputTokens: 1, cost: 0 }),
+        };
+        const core = createCore(new Settings({}, null), { llm, search: fakeSearch("fake") });
+        expect(core.llm).toBe(llm);
+        expect(core.search.name).toBe("fake");
+    });
+});

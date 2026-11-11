@@ -1,16 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { SafePageFetcher } from "../adapters/page-fetcher";
-import { htmlToText } from "../adapters/html";
-import {
-    BudgetError,
-    CallBudget,
-    limitInput,
-    RateLimiter,
-    redactSecrets,
-    unsafeUrlReason,
-    UNTRUSTED_RULE,
-    wrapUntrusted,
-} from "../guardrails";
+import { BudgetError } from "../../../core/errors";
+import { htmlToText } from "../../../core/search/html";
+import { SafePageFetcher } from "../../../core/search/page-fetcher";
+import { CallBudget, limitInput, RateLimiter } from "../../../core/security/limits";
+import { redactSecrets } from "../../../core/security/redact";
+import { UNTRUSTED_RULE, wrapUntrusted } from "../../../core/security/untrusted";
+import { unsafeUrlReason } from "../../../core/security/url-safety";
 import { buildEvidenceBlock } from "../stages/synthesizer";
 import { source } from "./helpers";
 

@@ -4,9 +4,13 @@
  * check, write) and depends only on the interfaces, never on a provider or
  * on the terminal, so any front end can call it.
  */
+import type { Cache } from "../../core/cache";
+import type { HistoryStore } from "../../core/history";
+import type { LLMClient } from "../../core/llm/types";
+import type { PageFetcher, SearchProvider, Source } from "../../core/search/types";
+import { CallBudget, limitInput, RateLimiter } from "../../core/security/limits";
+import type { UsageRecord } from "../../core/usage";
 import type { ChatConfig } from "./config";
-import { CallBudget, limitInput, RateLimiter } from "./guardrails";
-import type { Cache, HistoryStore, LLMClient, PageFetcher, SearchProvider } from "./interfaces";
 import { summaryPrompt } from "./prompts";
 import { planSearch } from "./stages/planner";
 import { decideRoute } from "./stages/router";
@@ -14,7 +18,7 @@ import { gatherEvidence } from "./stages/searcher";
 import { MeteredLLM, type StageContext } from "./stages/shared";
 import { checkSufficiency } from "./stages/sufficiency";
 import { answerDirectly, answerFromSources, citedSources } from "./stages/synthesizer";
-import type { ChatResult, CitedSource, RouteDecision, SearchPlan, Source, StepUsage } from "./types";
+import type { ChatResult, CitedSource, RouteDecision, SearchPlan } from "./types";
 
 export interface ChatDeps {
     llm: LLMClient;
@@ -52,7 +56,7 @@ export class ChatEngine {
     /** Folding old turns into the summary runs between messages. */
     private pendingSummary: Promise<void> | null = null;
     /** Usage of that background call, reported with the next message. */
-    private carriedUsage: StepUsage[] = [];
+    private carriedUsage: UsageRecord[] = [];
 
     constructor(
         private readonly deps: ChatDeps,

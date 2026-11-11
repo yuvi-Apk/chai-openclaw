@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { MemoryHistory } from "../adapters/history-memory";
-import { BudgetError } from "../guardrails";
-import type { LLMRequest } from "../interfaces";
+import { BudgetError } from "../../../core/errors";
+import { MemoryHistory } from "../../../core/history";
+import type { LLMRequest } from "../../../core/llm/types";
 import { FakeLLM, FakeSearch, source, testEngine } from "./helpers";
 
 /** Which step a fake model call belongs to, told from its system prompt. */
@@ -217,7 +217,7 @@ describe("chat pipeline", () => {
 
     test("running out of calls is reported as a budget error", async () => {
         const { MeteredLLM } = await import("../stages/shared");
-        const { CallBudget, RateLimiter } = await import("../guardrails");
+        const { CallBudget, RateLimiter } = await import("../../../core/security/limits");
         const metered = new MeteredLLM(new FakeLLM(() => "x"), new CallBudget(1, 1000), new RateLimiter(10));
         const request = { model: "m", messages: [], maxTokens: 10 };
         await metered.complete("one", request);

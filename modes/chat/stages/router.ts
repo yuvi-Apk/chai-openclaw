@@ -3,7 +3,8 @@
  * Obvious cases are settled by free rules. Only the unclear ones cost a
  * call to the cheap model, and that decision is cached.
  */
-import type { Cache, HistoryStore } from "../interfaces";
+import type { Cache } from "../../../core/cache";
+import type { HistoryStore } from "../../../core/history";
 import { routerPrompt } from "../prompts";
 import type { Complexity, RouteDecision } from "../types";
 import { compactContext, completeJsonStep, extractJson, textField, type StageContext } from "./shared";

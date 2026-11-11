@@ -9,6 +9,7 @@
 | Feature | Description |
 |---------|-------------|
 | **Agent Mode** | Multi-step AI agent that can explore, analyze, and modify your codebase using a tool loop |
+| **Chat Mode** | Ask questions; yuvi searches the web only when the answer needs fresh facts, and cites its sources |
 | **Approval-First** | All file/folder mutations and shell commands are staged and require explicit user approval before applying |
 | **Rich Terminal UI** | Beautiful ASCII banner, interactive prompts (@clack/prompts), and Markdown rendering (marked-terminal) |
 | **Codebase Tools** | Read, create, modify, delete files; list/search/analyze directories; execute shell commands |
@@ -20,19 +21,19 @@
 
 ## 🏗 Architecture
 
+Three layers, each importing only from the one below it:
+
 ```
-yuvi (CLI entry)
-├── wakeup.ts           # ASCII banner + mode picker (CLI / Telegram*)
-├── cli.ts              # Main CLI loop: Agent / Plan / Chat / Help
-└── agent/
-    ├── orchestrator.ts # Runs the AI agent loop (ToolLoopAgent from Vercel AI SDK)
-    ├── agent-tools.ts  # Tool definitions (read_file, create_file, execute_shell, etc.)
-    ├── tool-executor.ts# Safe execution sandbox + staging overlay
-    ├── action-tracker.ts# Logs every action with status (pending/approved/rejected)
-    ├── approval.ts     # Interactive review: accept all / review one-by-one / diff
-    ├── diff-view.ts    # Unified diff formatting for previews
-    └── types.ts        # TypeScript types for actions, config, status
+index.ts                 starts a front end with the list of modes
+frontends/terminal/      reads input, shows output, asks questions
+modes/                   agent/ · chat/ · echo/ (example), one folder each
+core/                    settings, model client, search, security, the Mode contract
 ```
+
+A mode never prints and a front end never decides anything: they talk
+through events and questions defined in `core/mode.ts`. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full picture and
+[docs/adding-a-mode.md](docs/adding-a-mode.md) to add a mode.
 
 \* Telegram mode is a placeholder — not yet implemented.
 
@@ -156,30 +157,15 @@ Hello from yuvi!
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | ✅ | — | Your OpenRouter API key |
+| `OPENROUTER_API_KEY` | ✅ | — | Your OpenRouter API key (can also be saved from inside the app) |
 | `OPENROUTER_DEFAULT_MODEL` | ❌ | `openrouter/free` | Model identifier (see [OpenRouter models](https://openrouter.ai/models)) |
+| `YUVI_MODEL_FAST` | ❌ | main model | Cheap model for triage, routing and summaries |
+| `TAVILY_API_KEY` | ❌ | — | Use Tavily for web search instead of DuckDuckGo |
+| `YUVI_LOG` | ❌ | off | `1` writes a usage log to `~/.yuvi/logs/` (no message text, secrets redacted) |
 | `SKILLS_DIRS` | ❌ | — | Semicolon-separated extra directories to scan for `SKILL.md` files |
 
-### Agent Config (in `modes/agent/types.ts`)
-
-```ts
-export const defaultAgentConfig = (): AgentConfig => ({
-    codebasePath: process.cwd(),
-    maxFileSizeToRead: 1024 * 1024,        // 1 MB
-    excludePatterns: [
-        'node_modules', '.git', 'dist', 'build',
-        '.next', '*.log', '.env*'
-    ],
-    tools: {
-        allowShellExecution: true,
-        allowFileModification: true,
-        allowFileCreation: true,
-        allowFolderCreation: true,
-    },
-});
-```
-
-You can customize by importing and modifying before passing to `ToolExecutor`.
+All settings are read in one place, `core/config.ts`. The full list is in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#settings).
 
 ---
 
@@ -188,33 +174,24 @@ You can customize by importing and modifying before passing to `ToolExecutor`.
 ```
 chai-openclaw/
 ├── index.ts                 # CLI entry point (commander.js)
-├── package.json             # Dependencies, scripts, bin entry "yuvi"
-├── tsconfig.json            # TypeScript config (ES modules, strict)
-├── bun.lock                 # Bun lockfile
-├── .env                     # Your API keys (gitignored)
-├── .gitignore
-├── .prettierrc / .prettierignore
-├── cspell.json              # Spell-check config
-├── ai/
-│   ├── index.ts             # Re-exports getAgentModel
-│   └── ai.config.ts         # OpenRouter provider + model selection
-├── terminal-ui/
-│   ├── wakeup.ts            # Banner + mode picker
-│   └── terminal-md.ts       # Markdown → ANSI renderer
+├── core/                    # Shared by every mode; imports nothing above it
+│   ├── config.ts            # Settings: the only reader of the environment
+│   ├── compose.ts           # createCore(): builds the shared services
+│   ├── mode.ts              # Mode contract, events, registry, tool permissions
+│   ├── errors.ts, usage.ts, log.ts, format.ts, cache.ts, history.ts
+│   ├── llm/                 # LLMClient, AI SDK client, model provider registry
+│   ├── search/              # Search providers, safe page fetcher
+│   ├── security/            # Redaction, URL safety, untrusted content, limits
+│   └── testing.ts           # Scripted model and a host with no screen
 ├── modes/
-│   ├── cli.ts               # Main CLI loop (Agent/Plan/Chat/Help)
-│   └── agent/
-│       ├── orchestrator.ts  # runAgentMode() - AI agent loop
-│       ├── agent-tools.ts   # Tool definitions for AI SDK
-│       ├── tool-executor.ts # Safe execution + staging overlay
-│       ├── action-tracker.ts# Action log with status tracking
-│       ├── approval.ts      # Interactive approval flow + diff
-│       ├── diff-view.ts     # Unified diff formatting
-│       └── types.ts         # ActionLog, AgentConfig, types
-├── scripts/
-│   ├── explain-staged.sh    # Helper: explain staged git changes
-│   └── teacher-prompt.md    # Prompt template for AI teaching
-└── docs/                    # (Ignored per your request — concept notes)
+│   ├── index.ts             # The registry: one line per mode
+│   ├── agent/               # mode.ts, brain.ts, agent-tools.ts, tool-executor.ts, approval.ts, …
+│   ├── chat/                # mode.ts, pipeline.ts, stages/, prompts.ts, config.ts
+│   └── echo/                # Example mode (shown with YUVI_DEV=1)
+├── frontends/
+│   └── terminal/            # app.ts, session-loop.ts, renderer.ts, prompts.ts, input.ts, …
+├── scripts/                 # explain-staged.sh, teacher-prompt.md
+└── docs/                    # ARCHITECTURE.md, adding-a-mode.md, concept notes
 ```
 
 ---
@@ -233,6 +210,9 @@ bun run index.ts
 # Explain staged git changes (uses scripts/explain-staged.sh)
 bun run explain
 
+# Run the tests
+bun test
+
 # Type-check
 bunx tsc --noEmit
 
@@ -240,7 +220,11 @@ bunx tsc --noEmit
 bunx prettier --write .
 ```
 
-### Adding a New Tool
+### Adding a New Mode
+
+One folder and one line in `modes/index.ts`. See [docs/adding-a-mode.md](docs/adding-a-mode.md).
+
+### Adding a New Tool (Agent Mode)
 
 1. Add the tool definition in `modes/agent/agent-tools.ts`
 2. Implement the executor method in `modes/agent/tool-executor.ts`

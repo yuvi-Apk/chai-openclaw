@@ -1,15 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { ActionTracker } from "../action-tracker";
-import { commandPrefix, groupPending, isReadOnlyCommand, runApprovalFlow } from "../approval";
+import { createRecordingHost, testSettings } from "../../../core/testing";
+import { approveCommand, commandPrefix, groupPending, isReadOnlyCommand, runApprovalFlow } from "../approval";
 import { triageByKeywords } from "../brain";
-import { mentionAtEnd, rankPaths } from "../input";
 import { buildSystemPrompt } from "../prompt";
-import { defaultAgentConfig, type AgentSession } from "../types";
-import { captureOutput } from "./helpers";
+import { loadAgentConfig, type AgentSession } from "../types";
 
 /** Only the parts of a session these functions look at. */
 const sessionWith = (checkCommands: string[] = [], mode: AgentSession["mode"] = "ask") =>
-    ({ mode, config: { ...defaultAgentConfig(), checkCommands, codebasePath: process.cwd() } }) as AgentSession;
+    ({ mode, config: { ...loadAgentConfig(testSettings(), process.cwd()), checkCommands } }) as AgentSession;
 
 describe("read-only commands", () => {
     const session = sessionWith(["bun run check"]);
@@ -69,31 +68,78 @@ describe("approval", () => {
         expect(groups[2]!.patch).toBeNull();
     });
 
-    test("auto-approve accepts everything and still shows the changes", async () => {
+    test("auto-approve is passed on to the front end, which shows the changes", async () => {
         const tracker = staged();
-        let approved = false;
-        const screen = await captureOutput(async () => {
-            approved = await runApprovalFlow(tracker, { autoApprove: true });
-        });
-        expect(approved).toBe(true);
+        const host = createRecordingHost();
+        expect(await runApprovalFlow(tracker, host, { autoApprove: true })).toBe(true);
         expect(tracker.getActions().every((a) => a.status === "approved")).toBe(true);
-        expect(screen).toContain("yuvi wants to make 3 changes. Nothing is saved yet:");
-        expect(screen).toContain("▌ a.ts (file_create)");
+        expect(host.confirmations).toEqual([
+            {
+                kind: "changes",
+                auto: true,
+                groups: [
+                    { id: "0", label: "a.ts (file_create)", patch: expect.stringContaining("+new") },
+                    { id: "1", label: "b.ts (file_modify)", patch: expect.stringContaining("+2") },
+                    { id: "2", label: "Create folder: lib", patch: null },
+                ],
+            },
+        ]);
     });
 
-    test("without a terminal everything is rejected", async () => {
+    test("only the accepted changes are approved; the rest are rejected", async () => {
         const tracker = staged();
-        let approved = true;
-        const screen = await captureOutput(async () => {
-            approved = await runApprovalFlow(tracker);
-        });
-        expect(approved).toBe(false);
+        const host = createRecordingHost({ confirm: () => ({ approved: ["1"] }) });
+        expect(await runApprovalFlow(tracker, host)).toBe(true);
+        const status = Object.fromEntries(tracker.getActions().map((a) => [a.path, a.status]));
+        expect(status).toEqual({ "a.ts": "rejected", "b.ts": "approved", lib: "rejected" });
+    });
+
+    test("when nothing is accepted everything is rejected", async () => {
+        const tracker = staged();
+        const host = createRecordingHost({ confirm: () => ({ approved: [] }) });
+        expect(await runApprovalFlow(tracker, host)).toBe(false);
         expect(tracker.getActions().every((a) => a.status === "rejected")).toBe(true);
-        expect(screen).toContain("No interactive terminal: staged changes were not applied.");
     });
 
     test("nothing pending means nothing to approve", async () => {
-        expect(await runApprovalFlow(new ActionTracker())).toBe(false);
+        const host = createRecordingHost();
+        expect(await runApprovalFlow(new ActionTracker(), host)).toBe(false);
+        expect(host.confirmations).toEqual([]);
+    });
+});
+
+describe("command approval", () => {
+    const session = (host: ReturnType<typeof createRecordingHost>) =>
+        ({ ...sessionWith(["bun run check"]), host, allowedCommands: new Set<string>() }) as AgentSession;
+
+    test("read-only commands run without asking", async () => {
+        const host = createRecordingHost();
+        expect(await approveCommand(session(host), "git status")).toBe(true);
+        expect(host.confirmations).toEqual([]);
+    });
+
+    test("other commands ask, and 'don't ask again' is remembered by prefix", async () => {
+        const host = createRecordingHost({ confirm: () => ({ approved: ["run"], remember: true }) });
+        const s = session(host);
+        expect(await approveCommand(s, "bun add left-pad")).toBe(true);
+        expect(host.confirmations).toEqual([{ kind: "command", command: "bun add left-pad", rememberAs: "bun add" }]);
+        expect(await approveCommand(s, "bun add zod")).toBe(true);
+        expect(host.confirmations).toHaveLength(1);
+    });
+
+    test("a chained command always asks and cannot be remembered", async () => {
+        const host = createRecordingHost();
+        const s = session(host);
+        s.allowedCommands.add("git push");
+        expect(await approveCommand(s, "git push && rm -rf x")).toBe(true);
+        expect(host.confirmations).toEqual([{ kind: "command", command: "git push && rm -rf x" }]);
+    });
+
+    test("a refusal, or nobody to ask, means no", async () => {
+        expect(await approveCommand(session(createRecordingHost({ confirm: () => ({ approved: [] }) })), "rm x")).toBe(false);
+        const unattended = createRecordingHost({ interactive: false });
+        expect(await approveCommand(session(unattended), "rm x")).toBe(false);
+        expect(unattended.confirmations).toEqual([]);
     });
 });
 
@@ -128,20 +174,3 @@ describe("system prompt", () => {
     });
 });
 
-describe("input box helpers", () => {
-    test("an @mention at the end of the line is found", () => {
-        expect(mentionAtEnd("look at @src/a")).toEqual({ start: 9, query: "src/a" });
-        expect(mentionAtEnd("@")).toEqual({ start: 1, query: "" });
-        expect(mentionAtEnd("mail me@host")).toBeNull();
-        expect(mentionAtEnd("@done then more")).toBeNull();
-    });
-
-    test("paths are ranked: prefix, file name, contains, letters in order", () => {
-        const paths = ["modes/", "modes/agent/orchestrator.ts", "modes/agent/ui.ts", "index.ts", "docs/index.md"];
-        expect(rankPaths(paths, "")).toEqual(["index.ts", "docs/index.md", "modes/", "modes/agent/orchestrator.ts", "modes/agent/ui.ts"]);
-        expect(rankPaths(paths, "index")).toEqual(["index.ts", "docs/index.md"]);
-        expect(rankPaths(paths, "orch")).toEqual(["modes/agent/orchestrator.ts"]);
-        expect(rankPaths(paths, "mui")).toEqual(["modes/agent/ui.ts"]);
-        expect(rankPaths(paths, "zzz")).toEqual([]);
-    });
-});

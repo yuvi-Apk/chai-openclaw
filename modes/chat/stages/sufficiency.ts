@@ -3,7 +3,7 @@
  * question, and if not, what one extra round should look for.
  */
 import { sufficiencyPrompt } from "../prompts";
-import type { Source } from "../types";
+import type { Source } from "../../../core/search/types";
 import { buildEvidenceBlock } from "./synthesizer";
 import { completeJsonStep, extractJson, textField, type StageContext } from "./shared";
 

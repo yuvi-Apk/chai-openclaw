@@ -1,6 +1,5 @@
 import { tool } from "ai";
 import z from "zod";
-import { isCancel, select, text } from "@clack/prompts";
 import type { AgentSession } from "./types";
 import type { RepoMap } from "./repo-map";
 import { approveCommand, isReadOnlyCommand } from "./approval";
@@ -23,6 +22,9 @@ export const READ_ONLY_TOOLS = [
     "grep",
     "find_symbol",
 ] as const;
+
+/** The extra choice that lets the user type their own answer. */
+const OTHER_ANSWER = "__other__";
 
 export function createAgentTools(session: AgentSession, repoMap: RepoMap) {
     const { executor, ui } = session;
@@ -236,27 +238,21 @@ export function createAgentTools(session: AgentSession, repoMap: RepoMap) {
                     .describe("Up to 4 suggested answers; the user can always type their own"),
             }),
             execute: async ({ question, options }) => {
-                if (!process.stdin.isTTY) {
+                const { host } = session;
+                if (!host.interactive) {
                     return "No interactive user is available. Choose the most reasonable option yourself and state the assumption.";
                 }
-                return ui.withPrompt(async () => {
-                    if (options?.length) {
-                        const picked = await select({
-                            message: question,
-                            options: [
-                                ...options.map((o) => ({ value: o, label: o })),
-                                { value: "__other__", label: "Other (type an answer)" },
-                            ],
-                        });
-                        if (isCancel(picked)) return "The user skipped the question.";
-                        if (picked !== "__other__") return `User answered: ${String(picked)}`;
-                    }
-                    const typed = await text({ message: question });
-                    if (isCancel(typed) || !String(typed ?? "").trim()) {
-                        return "The user skipped the question.";
-                    }
-                    return `User answered: ${String(typed).trim()}`;
-                });
+                if (options?.length) {
+                    const picked = await host.choose(question, [
+                        ...options.map((o) => ({ value: o, label: o })),
+                        { value: OTHER_ANSWER, label: "Other (type an answer)" },
+                    ]);
+                    if (picked === null) return "The user skipped the question.";
+                    if (picked !== OTHER_ANSWER) return `User answered: ${picked}`;
+                }
+                const typed = await host.ask(question);
+                if (!typed?.trim()) return "The user skipped the question.";
+                return `User answered: ${typed.trim()}`;
             },
         }),
 

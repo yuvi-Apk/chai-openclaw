@@ -1,9 +1,11 @@
-import { select, isCancel } from "@clack/prompts";
-import chalk from "chalk";
-import type { ActionTracker } from "./action-tracker.ts";
-import type { ActionLog, AgentSession } from "./types.ts";
-import { composeBeforeAfter, formatPatch } from "./diff-view.ts";
-import { colorizeDiff } from "./ui.ts";
+/**
+ * What the agent may do without asking, and how it asks for the rest:
+ * staged file changes and shell commands both go to the user through the host.
+ */
+import type { ModeHost } from "../../core/mode";
+import type { ActionTracker } from "./action-tracker";
+import type { ActionLog, AgentSession } from "./types";
+import { composeBeforeAfter, formatPatch } from "./diff-view";
 
 
 interface ReviewGroup {
@@ -63,98 +65,32 @@ export function groupPending(pending: ActionLog[]): ReviewGroup[] {
     return groups;
 }
 
-/** Print every staged change with its diff, so the user decides on what they can see. */
-function printStaged(groups: ReviewGroup[]): void {
-    console.log(
-        chalk.bold(
-            `\nyuvi wants to make ${groups.length} change${groups.length === 1 ? "" : "s"}. Nothing is saved yet:`,
-        ),
-    );
-    console.log(chalk.dim("Green lines (+) are added, red lines (-) are removed."));
-    for (const g of groups) {
-        console.log(`\n${chalk.cyan("▌")} ${chalk.bold(g.label)}`);
-        if (g.patch) console.log(colorizeDiff(g.patch, 60));
-    }
-    console.log("");
-}
-
+/**
+ * Show the staged changes to the user and record their decision on each one.
+ * Returns true when at least one change was accepted.
+ */
 export async function runApprovalFlow(
     tracker: ActionTracker,
+    host: ModeHost,
     options: { autoApprove?: boolean } = {},
 ): Promise<boolean> {
     const pending = tracker.getPendingMutations();
-
     if (pending.length === 0) return false;
 
     const groups = groupPending(pending);
-    printStaged(groups);
-
-    if (options.autoApprove) {
-        for (const a of pending) tracker.updateActionStatus(a.id, "approved", true);
-        return true;
-    }
-
-    // Without a terminal nobody can approve: keep the workspace untouched.
-    if (!process.stdin.isTTY) {
-        for (const a of pending) tracker.updateActionStatus(a.id, "rejected", false);
-        console.log(chalk.yellow("No interactive terminal: staged changes were not applied."));
-        return false;
-    }
-
-    const choice = await select({
-        message: "Save these changes to your files?",
-        options: [
-            { value: "all", label: "Yes, save all changes" },
-            { value: "select", label: "Let me decide file by file" },
-            { value: "cancel", label: "No, discard all changes", hint: "your files stay as they are" },
-        ],
+    const reply = await host.confirm({
+        kind: "changes",
+        groups: groups.map((group, index) => ({ id: String(index), label: group.label, patch: group.patch })),
+        auto: Boolean(options.autoApprove),
     });
 
-    if (isCancel(choice) || choice === "cancel") {
-        for (const a of pending) tracker.updateActionStatus(a.id, "rejected", false);
-        return false;
-    }
-
-    if (choice === "all") {
-        for (const a of pending) tracker.updateActionStatus(a.id, "approved", true);
-        return true;
-    }
-
-    for (const g of groups) {
-        while (true) {
-            const opt = await select({
-                message: chalk.bold(g.label),
-                options: [
-                    { value: "accept", label: "Yes, save this change" },
-                    { value: "diff", label: "Show full diff", hint: g.patch ? "" : "N/A" },
-                    { value: "reject", label: "No, discard this change" },
-                ],
-            });
-
-            if (isCancel(opt)) {
-                for (const a of pending) {
-                    if (a.status === "pending")
-                        tracker.updateActionStatus(a.id, "rejected", false);
-                }
-                return tracker.getActions().some((a) => a.status === "approved");
-            }
-
-            if (opt === "diff") {
-                if (g.patch) console.log("\n" + colorizeDiff(g.patch, 2000) + "\n");
-                continue;
-            }
-
-            for (const id of g.actionIds) {
-                tracker.updateActionStatus(
-                    id,
-                    opt === "accept" ? "approved" : "rejected",
-                    opt === "accept",
-                );
-            }
-            break;
+    const accepted = new Set(reply.approved);
+    groups.forEach((group, index) => {
+        const ok = accepted.has(String(index));
+        for (const id of group.actionIds) {
+            tracker.updateActionStatus(id, ok ? "approved" : "rejected", ok);
         }
-    }
-
+    });
     return tracker.getActions().some((a) => a.status === "approved");
 }
 
@@ -203,27 +139,14 @@ export async function approveCommand(
     const chained = /[;&|<>`]|\$\(/.test(cmd);
     const prefix = commandPrefix(cmd);
     if (!chained && session.allowedCommands.has(prefix)) return true;
-    if (!process.stdin.isTTY) return false;
+    if (!session.host.interactive) return false;
 
-    return session.ui.withPrompt(async () => {
-        console.log(
-            `\n${chalk.yellow("▌")} ${chalk.bold("yuvi wants to run a command on your computer:")}\n  ${chalk.cyan(cmd)}`,
-        );
-        const choice = await select({
-            message: "Allow this command?",
-            options: [
-                { value: "yes", label: "Yes, run it" },
-                ...(chained
-                    ? []
-                    : [{
-                        value: "always",
-                        label: `Yes, and don't ask again for "${prefix}" commands this session`,
-                    }]),
-                { value: "no", label: "No, don't run it" },
-            ],
-        });
-        if (isCancel(choice) || choice === "no") return false;
-        if (choice === "always") session.allowedCommands.add(prefix);
-        return true;
+    const reply = await session.host.confirm({
+        kind: "command",
+        command: cmd,
+        ...(chained ? {} : { rememberAs: prefix }),
     });
+    if (!reply.approved.length) return false;
+    if (reply.remember) session.allowedCommands.add(prefix);
+    return true;
 }

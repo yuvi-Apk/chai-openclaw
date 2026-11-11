@@ -1,13 +1,15 @@
 /**
- * Shared helpers for the agent tests: a throwaway workspace on disk and a
- * way to capture what is written to the screen.
+ * Shared helpers for the agent tests: a throwaway workspace on disk.
  */
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ActionTracker } from "../action-tracker";
 import { ToolExecutor } from "../tool-executor";
-import { defaultAgentConfig, type AgentConfig } from "../types";
+import { Settings } from "../../../core/config";
+import { loadAgentConfig, type AgentConfig } from "../types";
+
+export const FAKE_API_KEY = "sk-or-test-key-that-must-not-leak";
 
 export interface Workspace {
     root: string;
@@ -30,7 +32,9 @@ export function makeWorkspace(files: Record<string, string> = {}): Workspace {
     };
     for (const [rel, content] of Object.entries(files)) write(rel, content);
 
-    const config = { ...defaultAgentConfig(), codebasePath: root };
+    // Commands need the real PATH; the fake key checks that it is not passed on.
+    const settings = new Settings({ ...process.env, OPENROUTER_API_KEY: FAKE_API_KEY, YUVI_CONTEXT_WINDOW: "" }, null);
+    const config = loadAgentConfig(settings, root);
     const tracker = new ActionTracker();
     return {
         root,
@@ -51,35 +55,3 @@ export function approveAll(tracker: ActionTracker): void {
     }
 }
 
-const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
-
-/** Remove colour and cursor codes, so tests compare the words only. */
-export const plain = (text: string) => text.replace(ANSI, "");
-
-/**
- * Run `fn` with the terminal switched off and collect everything it prints
- * through process.stdout and console.log.
- */
-export async function captureOutput(fn: () => unknown | Promise<unknown>): Promise<string> {
-    const chunks: string[] = [];
-    const stdout = process.stdout as unknown as { write: unknown; isTTY?: boolean };
-    const stdin = process.stdin as unknown as { isTTY?: boolean };
-    const saved = { write: stdout.write, log: console.log, outTty: stdout.isTTY, inTty: stdin.isTTY };
-
-    stdout.write = (chunk: unknown) => {
-        chunks.push(String(chunk));
-        return true;
-    };
-    console.log = (...args: unknown[]) => void chunks.push(args.join(" ") + "\n");
-    stdout.isTTY = false;
-    stdin.isTTY = false;
-    try {
-        await fn();
-    } finally {
-        stdout.write = saved.write;
-        console.log = saved.log;
-        stdout.isTTY = saved.outTty;
-        stdin.isTTY = saved.inTty;
-    }
-    return plain(chunks.join(""));
-}

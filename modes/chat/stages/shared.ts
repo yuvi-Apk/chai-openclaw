@@ -2,25 +2,19 @@
  * Helpers every pipeline stage uses: the metered model client, tolerant JSON
  * reading, and a compact view of the conversation for the cheap steps.
  */
+import { RateLimitError } from "../../../core/errors";
+import type { HistoryStore } from "../../../core/history";
+import type { LLMClient, LLMRequest, LLMResponse } from "../../../core/llm/types";
+import { CallBudget, RateLimiter } from "../../../core/security/limits";
+import type { UsageRecord } from "../../../core/usage";
 import type { ChatConfig } from "../config";
-import { CallBudget, RateLimiter } from "../guardrails";
-import type { HistoryStore, LLMClient, LLMRequest, LLMResponse } from "../interfaces";
-import type { StepUsage } from "../types";
-
-/** Thrown when too many model calls were made in the last minute. */
-export class RateLimitError extends Error {
-    constructor() {
-        super("Chat rate limit reached: too many model calls in the last minute.");
-        this.name = "RateLimitError";
-    }
-}
 
 /**
  * The model client the stages see. It enforces the per-message budget and
  * the per-minute limit, and records tokens and cost for every step.
  */
 export class MeteredLLM {
-    readonly usage: StepUsage[] = [];
+    readonly usage: UsageRecord[] = [];
 
     constructor(
         private readonly llm: LLMClient,

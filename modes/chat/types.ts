@@ -1,21 +1,9 @@
 /**
  * Plain data shapes passed between the chat pipeline stages.
- * Nothing here depends on a provider, the terminal or any other module.
+ * Nothing here depends on a provider or on the terminal.
  */
-
-export interface ChatTurn {
-    role: "user" | "assistant";
-    content: string;
-}
-
-/** One search result, in the shape every search provider must return. */
-export interface Source {
-    title: string;
-    url: string;
-    snippet: string;
-    /** ISO date (YYYY-MM-DD) when the provider knows it. */
-    date?: string;
-}
+import type { Source } from "../../core/search/types";
+import type { UsageRecord } from "../../core/usage";
 
 /** A source with the number the answer cites it by, e.g. [2]. */
 export interface CitedSource extends Source {
@@ -42,16 +30,6 @@ export interface SearchPlan {
     queries: string[];
 }
 
-/** Tokens and cost of one model call, so spending can be tuned per step. */
-export interface StepUsage {
-    step: string;
-    model: string;
-    inputTokens: number;
-    outputTokens: number;
-    cost: number;
-    ms: number;
-}
-
 /** What the pipeline returns for one user message. Front ends only read this. */
 export interface ChatResult {
     /** "clarify" means `answer` is a question back to the user. */
@@ -62,7 +40,7 @@ export interface ChatResult {
     sources: CitedSource[];
     route: RouteDecision;
     plan?: SearchPlan;
-    usage: StepUsage[];
+    usage: UsageRecord[];
     /** Search queries answered from the cache instead of the network. */
     cacheHits: number;
     /** Things the user should know: truncated input, search unavailable, and so on. */

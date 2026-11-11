@@ -1,13 +1,14 @@
 import {
     experimental_createSteering,
-    generateText,
     stepCountIs,
     ToolLoopAgent,
     type ModelMessage,
     type ToolSet,
 } from "ai";
-import chalk from "chalk";
-import { getAgentModel, getReasoningOverride, type ReasoningEffort } from "../../ai";
+import type { ReasoningEffort } from "../../core/config";
+import { withQuietSdkErrors } from "../../core/llm/quiet-sdk";
+import type { LLMClient, LLMResponse } from "../../core/llm/types";
+import { readCost } from "../../core/usage";
 import type { AgentSession } from "./types";
 import type { RepoMap } from "./repo-map";
 import { EDIT_TOOLS, type BaseTools } from "./agent-tools";
@@ -21,7 +22,8 @@ import {
     saveSession,
     summarizeHistory,
 } from "./memory";
-import { errorText, type StreamPartLike } from "./ui";
+import { errorText } from "../../core/errors";
+import type { StreamPartLike } from "./output";
 
 interface TaskProfile {
     kind: TaskKind;
@@ -63,23 +65,42 @@ export function triageByKeywords(text: string): TaskKind {
     return "question";
 }
 
+const TRIAGE_TIMEOUT_MS = 20_000;
+
+/**
+ * The text model with its tokens and cost added to the session totals, so
+ * small helper calls (triage, summaries) are not left out of the usage shown.
+ */
+export function countedLLM(session: Pick<AgentSession, "core" | "usage">): LLMClient {
+    const count = (response: LLMResponse) => {
+        session.usage.inputTokens += response.inputTokens;
+        session.usage.outputTokens += response.outputTokens;
+        session.usage.cost += response.cost;
+        return response;
+    };
+    return {
+        complete: async (request) => count(await session.core.llm.complete(request)),
+        stream: async (request, onToken) => count(await session.core.llm.stream(request, onToken)),
+    };
+}
+
 /** Decide what kind of task this is, so effort and gates fit the request. */
-async function triage(text: string, signal: AbortSignal): Promise<TaskKind> {
-    if ((process.env.YUVI_TRIAGE || "").toLowerCase() === "off") {
-        return triageByKeywords(text);
-    }
+async function triage(session: AgentSession, text: string, signal: AbortSignal): Promise<TaskKind> {
+    if (!session.config.modelTriage) return triageByKeywords(text);
     try {
-        const result = await generateText({
-            model: getAgentModel("fast"),
-            abortSignal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
-            prompt:
-                "Classify this request to a coding agent. Reply with exactly one word.\n" +
-                "question     - wants an explanation or information; no code change\n" +
-                "small_change - a small, local code change (one or two files)\n" +
-                "feature      - new behaviour that needs several steps or files\n" +
-                "debug        - something is broken and must be found and fixed\n" +
-                "refactor     - restructure existing code without changing behaviour\n\n" +
-                `Request: ${text.slice(0, 2000)}`,
+        const prompt =
+            "Classify this request to a coding agent. Reply with exactly one word.\n" +
+            "question     - wants an explanation or information; no code change\n" +
+            "small_change - a small, local code change (one or two files)\n" +
+            "feature      - new behaviour that needs several steps or files\n" +
+            "debug        - something is broken and must be found and fixed\n" +
+            "refactor     - restructure existing code without changing behaviour\n\n" +
+            `Request: ${text.slice(0, 2000)}`;
+        const result = await countedLLM(session).complete({
+            model: session.core.settings.modelId("fast"),
+            messages: [{ role: "user", content: prompt }],
+            timeoutMs: TRIAGE_TIMEOUT_MS,
+            signal,
         });
         const answer = result.text.toLowerCase();
         const kinds: TaskKind[] = ["small_change", "question", "feature", "debug", "refactor"];
@@ -115,7 +136,7 @@ async function runLoop(
     session.messages.push({ role: "user", content: input });
 
     const steering = experimental_createSteering();
-    ui.onSteer = (text) => void steering.steer(text);
+    session.onSteer = (text) => void steering.steer(text);
     for (const text of state.queuedSteers.splice(0)) void steering.steer(text);
 
     // What the model was last sent; used to rebuild history after the run.
@@ -128,12 +149,12 @@ async function runLoop(
     const withoutEdits = allToolNames.filter(
         (name) => !(EDIT_TOOLS as readonly string[]).includes(name),
     );
-    const reasoningOverride = getReasoningOverride();
+    const reasoningOverride = session.core.settings.reasoning;
     const reasoning =
         reasoningOverride === "off" ? undefined : (reasoningOverride ?? state.profile.effort);
 
     const agent = new ToolLoopAgent({
-        model: getAgentModel("main"),
+        model: session.core.models.forRole("main"),
         instructions: state.instructions,
         tools: ctx.tools,
         stopWhen: stepCountIs(state.profile.maxSteps),
@@ -173,83 +194,82 @@ async function runLoop(
     let lastCall = "";
     let sameCallCount = 0;
     let lastError = "";
-    let failed: string | undefined;
-
-    // The SDK prints stream errors with a stack trace to the console. The
-    // error is shown once, in plain words, by ui.errorBox instead.
-    const consoleError = console.error;
-    console.error = () => undefined;
+    let failed = undefined as string | undefined;
 
     try {
-        const result = await agent.stream({
-            messages: session.messages,
-            abortSignal: state.controller.signal,
-            experimental_steering: steering,
-        });
+        // The SDK prints stream errors with a stack trace. The error is
+        // shown once, in plain words, by the front end instead.
+        await withQuietSdkErrors(async () => {
+            const result = await agent.stream({
+                messages: session.messages,
+                abortSignal: state.controller.signal,
+                experimental_steering: steering,
+            });
 
-        for await (const raw of result.stream) {
-            const part = raw as unknown as StreamPartLike & {
-                usage?: { inputTokens?: number; outputTokens?: number };
-                providerMetadata?: Record<string, Record<string, unknown>>;
-            };
-            ui.handlePart(part);
+            for await (const raw of result.stream) {
+                const part = raw as unknown as StreamPartLike & {
+                    usage?: { inputTokens?: number; outputTokens?: number };
+                    providerMetadata?: Record<string, Record<string, unknown>>;
+                };
+                ui.handlePart(part);
 
-            if (part.type === "start-step") state.steps++;
+                if (part.type === "start-step") state.steps++;
 
-            if (part.type === "tool-call") {
-                const signature = `${part.toolName}:${JSON.stringify(part.input)}`;
-                sameCallCount = signature === lastCall ? sameCallCount + 1 : 1;
-                lastCall = signature;
-                if (sameCallCount === 3) {
-                    sameCallCount = 0;
-                    ui.note("Loop guard: the same tool call was repeated 3 times. Telling the agent to change approach.");
-                    void steering.steer(
-                        "[harness] You have made the exact same tool call 3 times. It is not giving you new information. " +
-                        "Stop, state in one sentence what you know and what is blocking you, then take a DIFFERENT approach.",
-                    );
+                if (part.type === "tool-call") {
+                    const signature = `${part.toolName}:${JSON.stringify(part.input)}`;
+                    sameCallCount = signature === lastCall ? sameCallCount + 1 : 1;
+                    lastCall = signature;
+                    if (sameCallCount === 3) {
+                        sameCallCount = 0;
+                        ui.note("Loop guard: the same tool call was repeated 3 times. Telling the agent to change approach.");
+                        void steering.steer(
+                            "[harness] You have made the exact same tool call 3 times. It is not giving you new information. " +
+                            "Stop, state in one sentence what you know and what is blocking you, then take a DIFFERENT approach.",
+                        );
+                    }
                 }
-            }
 
-            if (part.type === "tool-error") {
-                const message = errorText(part.error).slice(0, 300);
-                if (message === lastError) {
+                if (part.type === "tool-error") {
+                    const message = errorText(part.error).slice(0, 300);
+                    if (message === lastError) {
+                        lastError = "";
+                        ui.note("Loop guard: the same error happened twice. Telling the agent to change approach.");
+                        void steering.steer(
+                            "[harness] The same tool error happened twice in a row. Do not retry that call. " +
+                            "Read the error carefully, check your assumption (does the file or text really exist? read it again), and try another way.",
+                        );
+                    } else {
+                        lastError = message;
+                    }
+                } else if (part.type === "tool-result") {
                     lastError = "";
-                    ui.note("Loop guard: the same error happened twice. Telling the agent to change approach.");
-                    void steering.steer(
-                        "[harness] The same tool error happened twice in a row. Do not retry that call. " +
-                        "Read the error carefully, check your assumption (does the file or text really exist? read it again), and try another way.",
-                    );
-                } else {
-                    lastError = message;
                 }
-            } else if (part.type === "tool-result") {
-                lastError = "";
+
+                if (part.type === "finish-step") {
+                    const input = part.usage?.inputTokens ?? 0;
+                    const output = part.usage?.outputTokens ?? 0;
+                    session.usage.inputTokens += input;
+                    session.usage.outputTokens += output;
+                    session.usage.lastInputTokens = input;
+                    state.turnTokens += input + output;
+                    session.usage.cost += readCost(part.providerMetadata);
+                    ui.reportUsage(session.usage, config.contextWindow);
+                    session.core.log.event("agent.step", { inputTokens: input, outputTokens: output, step: state.steps });
+                }
+
+                if (part.type === "error") failed = errorText(part.error);
             }
 
-            if (part.type === "finish-step") {
-                const input = part.usage?.inputTokens ?? 0;
-                const output = part.usage?.outputTokens ?? 0;
-                session.usage.inputTokens += input;
-                session.usage.outputTokens += output;
-                session.usage.lastInputTokens = input;
-                state.turnTokens += input + output;
-                const cost = (part.providerMetadata?.openrouter?.usage as { cost?: number } | undefined)?.cost;
-                if (typeof cost === "number") session.usage.cost += cost;
-            }
-
-            if (part.type === "error") failed = errorText(part.error);
-        }
-
-        const responses = await result.responseMessages;
-        session.messages = [
-            ...snapshot.messages,
-            ...(responses.slice(snapshot.responseCount) as ModelMessage[]),
-        ];
+            const responses = await result.responseMessages;
+            session.messages = [
+                ...snapshot.messages,
+                ...(responses.slice(snapshot.responseCount) as ModelMessage[]),
+            ];
+        });
     } catch (error) {
         if (!state.controller.signal.aborted && !failed) failed = errorText(error);
     } finally {
-        console.error = consoleError;
-        ui.onSteer = (text) => state.queuedSteers.push(text);
+        session.onSteer = (text) => state.queuedSteers.push(text);
     }
 
     if (state.controller.signal.aborted) {
@@ -261,7 +281,7 @@ async function runLoop(
     }
 
     if (failed) {
-        ui.errorBox(failed);
+        ui.error(failed);
         session.messages = [
             ...snapshot.messages,
             { role: "assistant", content: `(The run failed with an error: ${failed.slice(0, 300)})` },
@@ -291,7 +311,7 @@ async function selfReview(
     if (changedLineCount(diff) < 8) return "";
 
     ui.setPhase("Reviewing");
-    ui.print(`${chalk.cyan("●")} ${chalk.bold("Self-review")} a reviewer with fresh context checks the diff`);
+    ui.line([{ text: "●", tone: "accent" }, " ", { text: "Self-review", tone: "strong" }, " a reviewer with fresh context checks the diff"]);
     try {
         const report = await runSubagent(session, ctx.baseTools, {
             type: "reviewer",
@@ -303,8 +323,8 @@ async function selfReview(
             ui.success("Self-review: no problems found.");
             return "";
         }
-        ui.print(chalk.yellow("  Reviewer findings:"));
-        ui.print(chalk.dim(report.split("\n").map((l) => `  │ ${l}`).join("\n")));
+        ui.line({ text: "  Reviewer findings:", tone: "warn" });
+        ui.line({ text: report.split("\n").map((l) => `  │ ${l}`).join("\n"), tone: "dim" });
         return report;
     } catch (error) {
         if (!session.abortSignal?.aborted) {
@@ -321,7 +341,7 @@ async function runChecks(session: AgentSession): Promise<string> {
     const failures: string[] = [];
 
     for (const command of config.checkCommands) {
-        ui.print(`${chalk.cyan("●")} ${chalk.bold("Verify")} ${command}`);
+        ui.line([{ text: "●", tone: "accent" }, " ", { text: "Verify", tone: "strong" }, ` ${command}`]);
         const result = await executor.runCommand(command, {
             timeoutMs: 180_000,
             signal: session.abortSignal,
@@ -329,11 +349,11 @@ async function runChecks(session: AgentSession): Promise<string> {
         if (result.aborted) return "";
         const seconds = (result.durationMs / 1000).toFixed(1);
         if (result.exitCode === 0) {
-            ui.print(chalk.dim(`  ⎿ passed (${seconds}s)`));
+            ui.line({ text: `  ⎿ passed (${seconds}s)`, tone: "dim" });
             continue;
         }
         const status = result.timedOut ? "timed out" : `exit code ${result.exitCode}`;
-        ui.print(chalk.red(`  ⎿ failed: ${status} (${seconds}s)`));
+        ui.line({ text: `  ⎿ failed: ${status} (${seconds}s)`, tone: "bad" });
         failures.push(`$ ${command}\n${status}\n${executor.clip(result.output, 6000) || "(no output)"}`);
     }
 
@@ -355,6 +375,7 @@ export async function runTurn(
     session: AgentSession,
     ctx: BrainContext,
     userText: string,
+    signal?: AbortSignal,
 ): Promise<void> {
     const { ui, executor, config } = session;
     const controller = new AbortController();
@@ -370,19 +391,22 @@ export async function runTurn(
         queuedSteers: [],
     };
 
-    ui.onAbort = () => {
+    // The front end asks to stop through `signal`; the turn winds down on its own.
+    const onAbort = () => {
         if (!controller.signal.aborted) {
             ui.note("Stopping…");
             controller.abort();
         }
     };
-    ui.onSteer = (text) => state.queuedSteers.push(text);
+    if (signal?.aborted) onAbort();
+    signal?.addEventListener("abort", onAbort, { once: true });
+    session.onSteer = (text) => state.queuedSteers.push(text);
     ui.startRun(session.usage, config.contextWindow);
 
     try {
         // 1. Triage.
         ui.setPhase("Sizing up the task");
-        const kind = session.mode === "plan" ? "feature" : await triage(userText, controller.signal);
+        const kind = session.mode === "plan" ? "feature" : await triage(session, userText, controller.signal);
         if (controller.signal.aborted) return;
         state.profile = PROFILES[kind];
         const kindLabel: Record<TaskKind, string> = {
@@ -392,11 +416,10 @@ export async function runTurn(
             debug: "Finding and fixing the problem",
             refactor: "Restructuring code — I will plan first",
         };
-        ui.print(
-            chalk.dim(
-                `  ◇ ${session.mode === "plan" ? "Plan mode — I will only read and write a plan" : kindLabel[kind]}`,
-            ),
-        );
+        ui.line({
+            text: `  ◇ ${session.mode === "plan" ? "Plan mode — I will only read and write a plan" : kindLabel[kind]}`,
+            tone: "dim",
+        });
         // A new task starts with an empty plan, so the plan gate applies to it.
         if (state.profile.requirePlan) session.todos = [];
 
@@ -430,7 +453,7 @@ export async function runTurn(
             if (
                 gated &&
                 !reviewed &&
-                (process.env.YUVI_SELF_REVIEW || "").toLowerCase() !== "off" &&
+                config.selfReview &&
                 executor.turnChangedPaths().length > 0
             ) {
                 reviewed = true;
@@ -497,9 +520,8 @@ export async function runTurn(
         }
         ui.turnSummary(session.usage, state.turnTokens, state.steps);
     } finally {
-        ui.endRun();
-        ui.onAbort = undefined;
-        ui.onSteer = undefined;
+        signal?.removeEventListener("abort", onAbort);
+        session.onSteer = undefined;
         session.abortSignal = undefined;
         saveSession(config.codebasePath, session.messages);
     }
@@ -514,7 +536,8 @@ export async function compactHistory(session: AgentSession): Promise<boolean> {
         const pruned = pruneToolOutputs(session.messages, 6);
         const next = await summarizeHistory(
             pruned.messages,
-            getAgentModel("fast"),
+            countedLLM(session),
+            session.core.settings.modelId("fast"),
             session.abortSignal,
         );
         session.messages = next;

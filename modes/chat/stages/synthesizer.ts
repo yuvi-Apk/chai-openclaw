@@ -3,10 +3,12 @@
  * `answerDirectly` answers from the model alone. `answerFromSources` writes
  * a cited answer from the gathered web evidence. Both stream their text.
  */
-import { wrapUntrusted } from "../guardrails";
-import type { HistoryStore, LLMRequest, LLMResponse } from "../interfaces";
+import type { HistoryStore } from "../../../core/history";
+import type { LLMRequest, LLMResponse } from "../../../core/llm/types";
+import type { Source } from "../../../core/search/types";
+import { wrapUntrusted } from "../../../core/security/untrusted";
 import { directAnswerPrompt, NEED_SEARCH_SIGNAL, synthesisPrompt } from "../prompts";
-import type { CitedSource, RouteDecision, SearchPlan, Source } from "../types";
+import type { CitedSource, RouteDecision, SearchPlan } from "../types";
 import type { StageContext } from "./shared";
 
 /** The numbered source list the model reads, marked as untrusted web content. */

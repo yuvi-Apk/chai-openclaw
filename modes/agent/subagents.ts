@@ -1,9 +1,9 @@
 import { stepCountIs, tool, ToolLoopAgent, type ToolSet } from "ai";
 import z from "zod";
-import { getAgentModel } from "../../ai";
+import { readCost } from "../../core/usage";
 import type { AgentSession } from "./types";
 import { EDIT_TOOLS, READ_ONLY_TOOLS, type BaseTools } from "./agent-tools";
-import { describeToolCall } from "./ui";
+import { describeToolCall } from "./output";
 
 export type SubagentType = "explorer" | "planner" | "reviewer" | "worker";
 
@@ -87,7 +87,7 @@ export async function runSubagent(
     }
 
     const agent = new ToolLoopAgent({
-        model: getAgentModel(profile.role),
+        model: session.core.models.forRole(profile.role),
         instructions: `${profile.instructions}\n\nWorkspace root: ${session.config.codebasePath}. All paths are relative to it.`,
         tools,
         stopWhen: stepCountIs(profile.maxSteps),
@@ -97,10 +97,11 @@ export async function runSubagent(
     const result = await agent.generate({
         prompt: options.prompt,
         abortSignal: options.abortSignal ?? session.abortSignal,
-        onStepFinish: ({ toolCalls, text, usage }) => {
+        onStepFinish: ({ toolCalls, text, usage, providerMetadata }) => {
             if (text?.trim()) lastText = text;
             session.usage.inputTokens += usage?.inputTokens ?? 0;
             session.usage.outputTokens += usage?.outputTokens ?? 0;
+            session.usage.cost += readCost(providerMetadata);
             for (const call of toolCalls) {
                 const d = describeToolCall(String(call.toolName), call.input);
                 session.ui.subLine(tag, `${d.verb} ${d.detail}`.trim());

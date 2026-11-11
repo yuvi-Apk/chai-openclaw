@@ -111,7 +111,7 @@ describe("context compaction", () => {
             { role: "user", content: "two" },
         ];
         // No model is needed: fewer than three user turns returns the input.
-        expect(await summarizeHistory(messages, null as never)).toBe(messages);
+        expect(await summarizeHistory(messages, null as never, "any-model")).toBe(messages);
     });
 });
 
