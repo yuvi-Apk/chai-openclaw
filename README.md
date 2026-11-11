@@ -26,6 +26,7 @@ Three layers, each importing only from the one below it:
 ```
 index.ts                 starts a front end with the list of modes
 frontends/terminal/      reads input, shows output, asks questions
+frontends/telegram/      the same from a Telegram chat on your phone
 modes/                   agent/ · chat/ · echo/ (example), one folder each
 core/                    settings, model client, search, security, the Mode contract
 ```
@@ -35,7 +36,48 @@ through events and questions defined in `core/mode.ts`. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full picture and
 [docs/adding-a-mode.md](docs/adding-a-mode.md) to add a mode.
 
-\* Telegram mode is a placeholder — not yet implemented.
+---
+
+## 📱 Telegram
+
+Use yuvi from your phone. The bot runs on your PC (which must stay on) and
+works on the project folder there; Telegram is only the screen and keyboard.
+No server or public address is needed.
+
+1. In Telegram, open **@BotFather**, send `/newbot` and copy the token.
+2. Open **@userinfobot** to see your numeric user id.
+3. Add to `.env`:
+
+   ```bash
+   TELEGRAM_BOT_TOKEN=123456:your-token
+   YUVI_TELEGRAM_USERS=your-numeric-id
+   YUVI_TELEGRAM_PIN=choose-6-or-more-characters
+   ```
+
+4. In your project folder run `yuvi telegram` (or `yuvi wakeup` → Telegram).
+5. Open your bot in Telegram, send `/unlock` and then your PIN, then `/start`.
+
+| In the chat | What it does |
+|---|---|
+| `/start`, `/menu` | Pick Agent, Plan or Chat |
+| a message | Runs a turn; steps and (folded) thinking show live, then the answer |
+| a message while yuvi works | Passed to the agent as a correction |
+| `/stop` | Stop the running turn |
+| Approve / Reject / Pick files / Reject + tell yuvi | Decide on each change; nothing is saved without a tap |
+| `/cycle`, `/mode` | Switch Ask, Auto, Plan |
+| `/undo`, `/new`, `/resume`, `/compact`, `/cost` | Same as in the terminal |
+| a photo with a caption | Ask about a screenshot (Agent and Plan) |
+| a file | Saved into the project after you confirm (`uploads/`, or the folder named in the caption) |
+| `/file <path>` | Sends a project file to you |
+| `/project` | Switch between folders listed in `YUVI_TELEGRAM_PROJECTS` |
+| `/thinking on\|off`, `/model`, `/help` | Display and model settings |
+| `/lock`, `/unlock` | Lock now; unlock with your PIN |
+
+Safety: only the listed user ids are served, in private chats. The bot starts
+locked and locks again after 15 quiet minutes. Five wrong PINs block guessing.
+Messages sent while the bot was off are dropped. Keys are never accepted in
+chat, and secret files (`.env`, keys) are never sent or overwritten. Bot chats
+are not end-to-end encrypted, so do not paste secrets into them.
 
 ---
 
@@ -44,7 +86,9 @@ through events and questions defined in `core/mode.ts`. See
 ### Prerequisites
 
 - **Bun** ≥ 1.0 (the runtime & package manager)
-- **OpenRouter API key** — get one at [openrouter.ai](https://openrouter.ai/keys)
+- **An API key** from either provider:
+  - **OpenRouter** — get one at [openrouter.ai](https://openrouter.ai/keys) (has free models), or
+  - **OpenAI** — get one at [platform.openai.com](https://platform.openai.com/api-keys) (prepaid credit)
 
 ### Install
 
@@ -62,13 +106,24 @@ bun install
 Create a `.env` file in the project root:
 
 ```bash
-# Required: Your OpenRouter API key
-OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxx
+# Which provider to use: openrouter (default) or openai
+YUVI_LLM=openrouter
 
-# Optional: Model to use (default: openrouter/free)
+# OpenRouter: key, and optionally the model (default: openrouter/free)
 # See https://openrouter.ai/models for available models
+OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxx
 OPENROUTER_DEFAULT_MODEL=openrouter/auto
+
+# OpenAI: key, and optionally the model (default: gpt-5-mini)
+# See https://platform.openai.com/docs/models for available models
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxx
+OPENAI_DEFAULT_MODEL=gpt-5-mini
 ```
+
+Both keys can be set at once; `YUVI_LLM` picks which one is used. Each
+provider keeps its own model setting. With OpenAI the cost line shows $0,
+because OpenAI does not report a price per call; check your spending on the
+OpenAI usage page.
 
 > **Tip:** You can also export these in your shell profile (`.bashrc`, `.zshrc`, etc.) instead of using `.env`.
 
@@ -157,12 +212,22 @@ Hello from yuvi!
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | ✅ | — | Your OpenRouter API key (can also be saved from inside the app) |
+| `YUVI_LLM` | ❌ | `openrouter` | Model provider: `openrouter` or `openai` |
+| `OPENROUTER_API_KEY` | with OpenRouter | — | Your OpenRouter API key (can also be saved from inside the app) |
 | `OPENROUTER_DEFAULT_MODEL` | ❌ | `openrouter/free` | Model identifier (see [OpenRouter models](https://openrouter.ai/models)) |
-| `YUVI_MODEL_FAST` | ❌ | main model | Cheap model for triage, routing and summaries |
+| `YUVI_MODEL_FAST` | ❌ | main model | Cheap OpenRouter model for triage, routing and summaries |
+| `OPENAI_API_KEY` | with OpenAI | — | Your OpenAI API key (can also be saved from inside the app) |
+| `OPENAI_DEFAULT_MODEL` | ❌ | `gpt-5-mini` | Model identifier (see [OpenAI models](https://platform.openai.com/docs/models)) |
+| `OPENAI_FAST_MODEL` | ❌ | main model | Cheap OpenAI model for triage, routing and summaries |
 | `TAVILY_API_KEY` | ❌ | — | Use Tavily for web search instead of DuckDuckGo |
 | `YUVI_LOG` | ❌ | off | `1` writes a usage log to `~/.yuvi/logs/` (no message text, secrets redacted) |
 | `SKILLS_DIRS` | ❌ | — | Semicolon-separated extra directories to scan for `SKILL.md` files |
+| `TELEGRAM_BOT_TOKEN` | Telegram | — | Bot token from @BotFather |
+| `YUVI_TELEGRAM_USERS` | Telegram | — | Numeric Telegram user ids allowed to use the bot, comma-separated |
+| `YUVI_TELEGRAM_PIN` | Telegram | — | PIN that unlocks the bot (6+ characters) |
+| `YUVI_TELEGRAM_LOCK_MINUTES` | ❌ | `15` | Lock again after this many quiet minutes |
+| `YUVI_TELEGRAM_WORKSPACE` | ❌ | start folder | Project folder the bot works in |
+| `YUVI_TELEGRAM_PROJECTS` | ❌ | — | `name=path;name=path` for `/project` |
 
 All settings are read in one place, `core/config.ts`. The full list is in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#settings).
@@ -189,7 +254,8 @@ chai-openclaw/
 │   ├── chat/                # mode.ts, pipeline.ts, stages/, prompts.ts, config.ts
 │   └── echo/                # Example mode (shown with YUVI_DEV=1)
 ├── frontends/
-│   └── terminal/            # app.ts, session-loop.ts, renderer.ts, prompts.ts, input.ts, …
+│   ├── terminal/            # app.ts, session-loop.ts, renderer.ts, prompts.ts, input.ts, …
+│   └── telegram/            # app.ts, router.ts, chat-controller.ts, host.ts, api/, view/, …
 ├── scripts/                 # explain-staged.sh, teacher-prompt.md
 └── docs/                    # ARCHITECTURE.md, adding-a-mode.md, concept notes
 ```

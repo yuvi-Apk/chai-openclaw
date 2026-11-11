@@ -1,0 +1,95 @@
+# core/llm/profiles.ts
+
+**Purpose:** A small "address book" of model providers. For each provider (OpenRouter, OpenAI) it says which environment variables hold the key and models, where they are saved in `~/.yuvi/settings.json`, the default model, and the web pages a user may need (keys, models, billing).
+
+**Where it fits:** [core/config.ts](../config.ts.md) reads a profile to find the right key and model. [core/llm/providers.ts](providers.ts.md) builds the actual model object. The front ends ([terminal errors](../../frontends/terminal/errors.ts.md), [telegram errors](../../frontends/telegram/errors.ts.md), [prompts.ts](../../frontends/terminal/prompts.ts.md)) use the label and links to talk to the user. The idea behind it is explained in [concepts/provider-profiles.md](../../../concepts/provider-profiles.md).
+
+---
+
+### `LLMProviderProfile`: the shape of one profile
+
+```ts
+export interface LLMProviderProfile {
+    label: string;
+    keyEnv: string;
+    modelEnv: string;
+    fastModelEnv: string;
+    savedKey: keyof UserSettings;
+    savedModel: keyof UserSettings;
+    savedFastModel: keyof UserSettings;
+    defaultModel: string;
+    keysUrl: string;
+    modelsUrl: string;
+    billingUrl: string;
+}
+```
+
+**What it does:** It lists every fact about a provider that the rest of the app needs:
+- `label`: the friendly name, like `"OpenAI"`.
+- `keyEnv`, `modelEnv`, `fastModelEnv`: the names of the environment variables to read.
+- `savedKey`, `savedModel`, `savedFastModel`: the field names in the saved settings file.
+- `defaultModel`: what to use when nothing is set.
+- `keysUrl`, `modelsUrl`, `billingUrl`: links shown in help and error messages.
+
+**Why it's used in general:** An interface describes the shape of an object, so TypeScript can check every profile has all the fields ([typescript-interfaces-and-utility-types.md](../../../concepts/typescript-interfaces-and-utility-types.md)).
+
+**Why it's used here:** `keyof UserSettings` is a neat trick. It means "must be one of the field names of `UserSettings`". If someone types `"openaiKey"` by mistake (the real name is `openaiApiKey`), TypeScript stops them.
+
+---
+
+### `LLM_PROFILES`: the two entries
+
+```ts
+export const LLM_PROFILES: Record<string, LLMProviderProfile> = {
+    openrouter: {
+        label: "OpenRouter",
+        keyEnv: "OPENROUTER_API_KEY",
+        modelEnv: "OPENROUTER_DEFAULT_MODEL",
+        fastModelEnv: "YUVI_MODEL_FAST",
+        savedKey: "apiKey",
+        defaultModel: "openrouter/free",
+        // ...links
+    },
+    openai: {
+        label: "OpenAI",
+        keyEnv: "OPENAI_API_KEY",
+        defaultModel: "gpt-5-mini",
+        // ...
+    },
+};
+```
+
+**What it does:** It maps a provider name (the value of `YUVI_LLM`) to its profile. OpenRouter keeps the old setting names (`apiKey`, `model`, `fastModel`, `YUVI_MODEL_FAST`), so existing setups keep working. OpenAI gets its own names (`OPENAI_DEFAULT_MODEL`, `openaiApiKey` and so on).
+
+**Why it's used in general:** Putting differences in **data** instead of `if/else` code means adding a third provider is "add one entry", not "edit five functions".
+
+**Why it's used here:** It keeps each provider's settings separate. If you set both keys, switching `YUVI_LLM` swaps everything at once: key, model and links. An OpenRouter model id like `openrouter/free` is never sent to OpenAI by accident.
+
+💡 **Tip:** `gpt-5-mini` was picked as OpenAI's default because it is cheap and can call tools, which Agent mode needs.
+
+---
+
+### `profileFor()`: find a profile safely
+
+```ts
+export const DEFAULT_PROFILE_NAME = "openrouter";
+
+export function profileFor(provider: string): LLMProviderProfile {
+    return LLM_PROFILES[provider] ?? (LLM_PROFILES[DEFAULT_PROFILE_NAME] as LLMProviderProfile);
+}
+```
+
+**What it does:** Looks up the profile by name. If there is none (for example, a custom adapter called `"local"`), it falls back to OpenRouter's profile. `??` means "use the right side if the left side is `undefined` or `null`".
+
+**Why it's used in general:** A lookup with a sensible fallback means callers never have to handle "not found" themselves.
+
+**Why it's used here:** The project uses `noUncheckedIndexedAccess`, so `LLM_PROFILES[provider]` has the type `LLMProviderProfile | undefined`. The `as LLMProviderProfile` tells TypeScript "the default entry is definitely there", which is true because it is written just above.
+
+---
+
+### 🧠 Key takeaways
+- A profile is plain data: env names, saved names, default model and links for one provider.
+- `YUVI_LLM` picks the profile; everything else follows from it.
+- Adding a provider = one entry here + one entry in [`LLM_PROVIDERS`](providers.ts.md).
+- `keyof UserSettings` lets TypeScript catch typos in saved-setting names.
+- Unknown providers safely share OpenRouter's settings.

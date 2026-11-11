@@ -27,7 +27,9 @@
 "words": [
   "appwrite", "megablog", "chai", "tinymce", "reduxjs",
   "bunfig", "tailwindcss", "dotenv", "exmple", "sgp",
-  "yuvi", "openclaw", "wakeup", "colour", "openrouter"
+  "yuvi", "openclaw", "wakeup", "colour", "openrouter",
+  "frontends", "duckduckgo", "tavily",
+  "ndash", "apos", "hellip", "rsquo", "lsquo", "rdquo", "ldquo"
 ],
 ```
 
@@ -35,7 +37,7 @@
 
 **Why it's used in general:** Code is full of names like library names, brands, and abbreviations that no dictionary has. Without this list, you would see hundreds of false "spelling mistakes".
 
-**Why it's used here:** `yuvi`, `openclaw`, and `chai` are this project's own names. `wakeup` is the name of `yuvi`'s command, and `openrouter` is the AI service it uses ([concepts/openrouter.md](../concepts/openrouter.md)). `colour` is the British spelling used in these docs. Others, like `bunfig` and `dotenv`, are tool names. Some words, like `appwrite` and `megablog`, look carried over from another project, which is fine because the list is shared.
+**Why it's used here:** `yuvi`, `openclaw`, and `chai` are this project's own names. `wakeup` is the name of `yuvi`'s command, and `openrouter` is the AI service it uses ([concepts/openrouter.md](../concepts/openrouter.md)). `colour` is the British spelling used in these docs. `frontends` is the folder name for the terminal and Telegram front ends, and `duckduckgo` and `tavily` are the two web search services Chat mode can use. The short words `ndash`, `apos`, `hellip`, `rsquo`, `lsquo`, `rdquo` and `ldquo` are **HTML entity names** (like `&rsquo;` for a curly apostrophe), which show up in code that cleans web pages. Others, like `bunfig` and `dotenv`, are tool names. Some words, like `appwrite` and `megablog`, look carried over from another project, which is fine because the list is shared.
 
 💡 **Tip:** Adding a word here hides the warning for that exact spelling everywhere. Only add words that are truly correct. Otherwise a real typo can hide behind it.
 

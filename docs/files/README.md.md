@@ -60,16 +60,20 @@ yuvi (CLI entry)
 bun install
 
 # .env file in the project root
+YUVI_LLM=openrouter                         # or openai
 OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxx
-OPENROUTER_DEFAULT_MODEL=openrouter/auto   # optional
+OPENROUTER_DEFAULT_MODEL=openrouter/auto
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxx
+OPENAI_DEFAULT_MODEL=gpt-5-mini
 
 bun run index.ts
 ```
 
 **What it does:**
-- **Prerequisites:** [Bun](../concepts/bun-runtime.md) and an [OpenRouter](../concepts/openrouter.md) API key.
+- **Prerequisites:** [Bun](../concepts/bun-runtime.md) and an API key from *either* [OpenRouter](../concepts/openrouter.md) (has free models) or OpenAI (prepaid credit).
 - **Install:** clone the repo, then `bun install` downloads everything listed in [package.json](package.json.md).
-- **Configure:** put your key in a `.env` file. Bun loads it automatically. See [environment-variables.md](../concepts/environment-variables.md).
+- **Configure:** put your settings in a `.env` file. Bun loads it automatically. See [environment-variables.md](../concepts/environment-variables.md). `YUVI_LLM` picks the provider. You may set both keys; each provider keeps its own model setting ([provider-profiles.md](../concepts/provider-profiles.md)).
+- **A note on cost:** with OpenAI the cost line shows $0, because OpenAI doesn't report a price per call. You check your spending on OpenAI's usage page instead.
 - **Run:** `bun run index.ts` runs the entry file, [index.ts](index.ts.md). After `bun link`, the `yuvi` command works too ([package-json-bin.md](../concepts/package-json-bin.md)).
 
 **Why it's used in general:** "Prerequisites → Install → Configure → Run" is the standard quick-start order. A newcomer can copy-paste from top to bottom.
@@ -121,16 +125,19 @@ bun run index.ts
 ```md
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENROUTER_API_KEY` | ✅ | — | Your OpenRouter API key |
+| `YUVI_LLM` | ❌ | `openrouter` | Model provider: `openrouter` or `openai` |
+| `OPENROUTER_API_KEY` | with OpenRouter | — | Your OpenRouter API key |
 | `OPENROUTER_DEFAULT_MODEL` | ❌ | `openrouter/free` | Model identifier |
-| `SKILLS_DIRS` | ❌ | — | Semicolon-separated extra directories to scan for `SKILL.md` files |
+| `OPENAI_API_KEY` | with OpenAI | — | Your OpenAI API key |
+| `OPENAI_DEFAULT_MODEL` | ❌ | `gpt-5-mini` | Model identifier |
+| `OPENAI_FAST_MODEL` | ❌ | main model | Cheap OpenAI model for triage, routing and summaries |
 ```
 
-**What it does:** One table lists the environment variables. Below it, the README shows `defaultAgentConfig()`: the workspace root, the 1 MB read limit, the excluded patterns, and the on/off switches for each kind of tool.
+**What it does:** One table lists the environment variables. The "Required" column says "with OpenRouter" or "with OpenAI", because you only need the key for the provider you picked. Below it, the README shows `defaultAgentConfig()`: the workspace root, the 1 MB read limit, the excluded patterns, and the on/off switches for each kind of tool.
 
 **Why it's used in general:** A config reference table saves people from hunting through source code to find what they can change.
 
-**Why it's used here:** The variables are read in [ai.config.ts](ai/ai.config.ts.md) and [tool-executor.ts](modes/agent/tool-executor.ts.md). The config object lives in [types.ts](modes/agent/types.ts.md).
+**Why it's used here:** The variables are read in one place, [core/config.ts](core/config.ts.md), using the names from [core/llm/profiles.ts](core/llm/profiles.ts.md). The config object lives in [types.ts](modes/agent/types.ts.md).
 
 ---
 
@@ -157,5 +164,5 @@ bunx prettier --write .  # format
 ### 🧠 Key takeaways
 - The README is the project's front page: pitch, features, quick start, and reference tables.
 - Its main message is **approval-first**: the agent stages changes, and you decide.
-- Setup needs three things: Bun, `bun install`, and an OpenRouter key in `.env`.
+- Setup needs three things: Bun, `bun install`, and an OpenRouter or OpenAI key in `.env` (`YUVI_LLM` picks which).
 - The root README is the overview. The `docs/` folder holds the deeper, file-by-file explanations.

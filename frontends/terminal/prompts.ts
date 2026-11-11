@@ -120,23 +120,25 @@ export async function askText(question: string): Promise<string | null> {
     return isCancel(typed) ? null : String(typed ?? "");
 }
 
-/** Ask for an OpenRouter key and save it for this user. Returns false when skipped. */
+/** Ask for a key for the model provider in use and save it for this user. Returns false when skipped. */
 export async function setupApiKey(settings: Settings): Promise<boolean> {
+    const { label, keysUrl } = settings.llmProfile;
     log.info(
         [
-            chalk.bold("yuvi needs an OpenRouter key to talk to an AI model."),
-            "1. Open https://openrouter.ai/keys and sign in (free)",
+            chalk.bold(`yuvi needs a ${label} key to talk to an AI model.`),
+            `1. Open ${keysUrl} and sign in`,
             "2. Create a key and copy it",
             "3. Paste it below — it is saved on this computer only (~/.yuvi/settings.json)",
+            chalk.dim("To use another provider, set YUVI_LLM (openrouter or openai) in .env."),
         ].join("\n"),
     );
     const key = await password({
-        message: "Paste your OpenRouter key (Esc to skip):",
+        message: `Paste your ${label} key (Esc to skip):`,
         validate: (value) =>
             value && value.trim().length < MIN_KEY_LENGTH ? "That looks too short to be a key." : undefined,
     });
     if (isCancel(key) || !String(key ?? "").trim()) return false;
-    settings.save({ apiKey: String(key).trim() });
+    settings.saveApiKey(String(key).trim());
     log.success("Key saved. You are ready to go.");
     return true;
 }
@@ -145,13 +147,13 @@ export async function setupApiKey(settings: Settings): Promise<boolean> {
 export async function chooseModel(settings: Settings): Promise<string | null> {
     log.info(
         `Current model: ${chalk.cyan(settings.modelId("main"))}\n` +
-        chalk.dim("Find model ids at https://openrouter.ai/models (pick one that supports tools)."),
+        chalk.dim(`Find model ids at ${settings.llmProfile.modelsUrl} (pick one that supports tools).`),
     );
     const id = await text({
         message: "New model id (Esc to keep the current one):",
         placeholder: settings.modelId("main"),
     });
     if (isCancel(id) || !String(id ?? "").trim()) return null;
-    settings.save({ model: String(id).trim() });
+    settings.saveModel(String(id).trim());
     return settings.modelId("main");
 }

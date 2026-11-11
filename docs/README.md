@@ -9,7 +9,7 @@ Welcome! This folder is your **living textbook** for the project. Every doc here
 `yuvi` has one command, `wakeup`. It shows a big colourful **YUVI** banner, then asks how you want to talk to it:
 
 - **CLI mode** ✅: a menu in your terminal with **Agent**, **Plan**, **Chat**, **Help**, and **Exit**.
-  - **Agent** is an AI helper (through [OpenRouter](concepts/openrouter.md)) that can read your project, search it, and *propose* file changes or shell commands. Proposed changes are **staged**. You then approve them all at once, or review them one by one with a [diff](concepts/unified-diffs.md) preview, and only the approved ones are applied.
+  - **Agent** is an AI helper (through [OpenRouter](concepts/openrouter.md) or OpenAI, picked with `YUVI_LLM`) that can read your project, search it, and *propose* file changes or shell commands. Proposed changes are **staged**. You then approve them all at once, or review them one by one with a [diff](concepts/unified-diffs.md) preview, and only the approved ones are applied.
   - **Chat** currently echoes your message back, and **Plan** is a placeholder.
 - **Telegram mode**: still "coming soon...".
 
@@ -53,9 +53,12 @@ You type:  yuvi wakeup
 
 ```bash
 bun install              # install dependencies
-# create a .env file with your OpenRouter key (Bun loads it automatically):
-#   OPENROUTER_API_KEY=sk-or-...
-#   OPENROUTER_DEFAULT_MODEL=openrouter/free   # optional
+# create a .env file (Bun loads it automatically); .env.example lists every setting.
+#   YUVI_LLM=openrouter                         # or openai
+#   OPENROUTER_API_KEY=sk-or-...                # when using OpenRouter
+#   OPENROUTER_DEFAULT_MODEL=openrouter/free    # optional
+#   OPENAI_API_KEY=sk-proj-...                  # when using OpenAI
+#   OPENAI_DEFAULT_MODEL=gpt-5-mini             # optional
 bun run index.ts wakeup  # run the wakeup command directly
 bun link                 # (optional) register the `yuvi` command on your machine
 yuvi wakeup              # then run it like a real CLI
@@ -84,6 +87,18 @@ In menus, use the **arrow keys** and **Enter**. Press **Ctrl+C** or **Esc** to c
 - [files/modes/agent/types.ts.md](files/modes/agent/types.ts.md): shared types (`ActionLog`, `AgentConfig`) and the default agent config.
 - [files/ai/ai.config.ts.md](files/ai/ai.config.ts.md): picks the AI model through OpenRouter, using environment variables.
 - [files/ai/index.ts.md](files/ai/index.ts.md): barrel file that re-exports `getAgentModel`.
+- [files/core/config.ts.md](files/core/config.ts.md): the one place settings come from. Env, saved file, per-provider key and model, and secret hiding.
+- [files/core/errors.ts.md](files/core/errors.ts.md): the app's error family and `classifyError`, which sorts OpenRouter and OpenAI failures into kinds.
+- [files/core/llm/profiles.ts.md](files/core/llm/profiles.ts.md): one data entry per model provider: env names, saved names, default model and links.
+- [files/core/llm/providers.ts.md](files/core/llm/providers.ts.md): the model registry (OpenRouter, OpenAI) and the `Models` factory.
+- [files/frontends/terminal/session-loop.ts.md](files/frontends/terminal/session-loop.ts.md): runs one mode session in the terminal and adds the shared `/key`, `/model`, help and exit commands.
+- [files/frontends/terminal/renderer.ts.md](files/frontends/terminal/renderer.ts.md): draws mode events on the terminal, including the plain-words error box.
+- [files/frontends/terminal/prompts.ts.md](files/frontends/terminal/prompts.ts.md): every terminal question: approve changes, allow commands, set the key, change the model.
+- [files/frontends/terminal/errors.ts.md](files/frontends/terminal/errors.ts.md): terminal wording for each error kind, naming the active provider.
+- [files/frontends/telegram/host.ts.md](files/frontends/telegram/host.ts.md): the `ModeHost` for one Telegram chat.
+- [files/frontends/telegram/chat-controller.ts.md](files/frontends/telegram/chat-controller.ts.md): one Telegram chat's mode, session and turn, plus the `/model` command.
+- [files/frontends/telegram/view/turn-view.ts.md](files/frontends/telegram/view/turn-view.ts.md): turns one turn's events into Telegram text, including error HTML.
+- [files/frontends/telegram/errors.ts.md](files/frontends/telegram/errors.ts.md): Telegram wording for each error kind, with short provider links.
 - [files/package.json.md](files/package.json.md): project identity card: name, `bin`, scripts, and dependencies.
 - [files/tsconfig.json.md](files/tsconfig.json.md): tells TypeScript how strict to be and which features to allow.
 - [files/cspell.json.md](files/cspell.json.md): spell-checker settings and the project's custom word list.
@@ -117,7 +132,9 @@ In menus, use the **arrow keys** and **Enter**. Press **Ctrl+C** or **Esc** to c
 - [concepts/ai-sdk-agents.md](concepts/ai-sdk-agents.md): the `ai` package: models, tools, and the `ToolLoopAgent` loop.
 - [concepts/zod-schemas.md](concepts/zod-schemas.md): describing and checking data shapes with Zod.
 - [concepts/openrouter.md](concepts/openrouter.md): one API key for many AI models.
+- [concepts/provider-profiles.md](concepts/provider-profiles.md): supporting several AI services with one data entry each, plus the "who wins" order for settings.
 - [concepts/environment-variables.md](concepts/environment-variables.md): `process.env`, `.env` files, and keeping secrets out of code.
+- [concepts/user-settings-file.md](concepts/user-settings-file.md): settings saved in your home folder (`~/.yuvi/settings.json`).
 - [concepts/staged-changes-and-approval.md](concepts/staged-changes-and-approval.md): the stage → approve → apply safety pattern for AI agents.
 - [concepts/unified-diffs.md](concepts/unified-diffs.md): reading `+`/`-` diffs and making them with the `diff` package.
 - [concepts/node-fs-path.md](concepts/node-fs-path.md): files, paths, path-traversal guards, and running shell commands.

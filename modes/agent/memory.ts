@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ModelMessage } from "ai";
 import type { LLMClient } from "../../core/llm/types";
+import { withoutImages } from "./attachments";
 import type { ToolExecutor } from "./tool-executor";
 
 const yuviDir = (root: string) => path.join(root, ".yuvi");
@@ -137,7 +138,7 @@ export function saveSession(root: string, messages: ModelMessage[]): void {
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(
             path.join(dir, "last.json"),
-            JSON.stringify({ savedAt: new Date().toISOString(), messages }),
+            JSON.stringify({ savedAt: new Date().toISOString(), messages: withoutImages(messages) }),
             "utf8",
         );
     } catch {

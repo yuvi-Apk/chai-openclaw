@@ -10,6 +10,7 @@ import { withQuietSdkErrors } from "../../core/llm/quiet-sdk";
 import type { LLMClient, LLMResponse } from "../../core/llm/types";
 import { readCost } from "../../core/usage";
 import type { AgentSession } from "./types";
+import { takeUserMessage } from "./attachments";
 import type { RepoMap } from "./repo-map";
 import { EDIT_TOOLS, type BaseTools } from "./agent-tools";
 import { runSubagent } from "./subagents";
@@ -133,7 +134,7 @@ async function runLoop(
     input: string,
 ): Promise<LoopOutcome> {
     const { ui, config } = session;
-    session.messages.push({ role: "user", content: input });
+    session.messages.push(takeUserMessage(session, input));
 
     const steering = experimental_createSteering();
     session.onSteer = (text) => void steering.steer(text);

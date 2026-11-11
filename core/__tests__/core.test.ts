@@ -6,6 +6,7 @@ import { createCore } from "../compose";
 import { Settings } from "../config";
 import { BudgetError, classifyError, ConfigError, errorText, RateLimitError, YuviError } from "../errors";
 import { withQuietSdkErrors } from "../llm/quiet-sdk";
+import { LLM_PROFILES } from "../llm/profiles";
 import type { LLMClient } from "../llm/types";
 import { clipMiddle } from "../security/limits";
 import { redactSecrets, scrubEnv } from "../security/redact";
@@ -77,6 +78,73 @@ describe("settings", () => {
     });
 });
 
+describe("settings per model provider", () => {
+    const bothKeys = {
+        OPENROUTER_API_KEY: "sk-or-router-key-123",
+        OPENROUTER_DEFAULT_MODEL: "router/model",
+        OPENAI_API_KEY: "sk-openai-key-12345",
+    };
+
+    test("OpenAI uses its own key and a default model OpenAI knows", () => {
+        const settings = new Settings({ ...bothKeys, YUVI_LLM: "openai" }, null);
+        expect(settings.llmProvider).toBe("openai");
+        expect(settings.llmProfile.label).toBe("OpenAI");
+        expect(settings.apiKey).toBe("sk-openai-key-12345");
+        expect(settings.modelId("main")).toBe("gpt-5-mini");
+        expect(settings.modelId("fast")).toBe("gpt-5-mini");
+    });
+
+    test("OpenAI models come from their own variables, never OpenRouter's", () => {
+        const settings = new Settings(
+            { ...bothKeys, YUVI_LLM: "OpenAI", YUVI_MODEL_FAST: "router/fast", OPENAI_DEFAULT_MODEL: "gpt-main", OPENAI_FAST_MODEL: "gpt-fast" },
+            null,
+        );
+        expect(settings.modelId("main")).toBe("gpt-main");
+        expect(settings.modelId("fast")).toBe("gpt-fast");
+    });
+
+    test("OpenRouter stays the default and ignores the OpenAI values", () => {
+        const settings = new Settings({ ...bothKeys, OPENAI_DEFAULT_MODEL: "gpt-main" }, null);
+        expect(settings.apiKey).toBe("sk-or-router-key-123");
+        expect(settings.modelId("main")).toBe("router/model");
+    });
+
+    test("a key or model saved in the app goes to the provider in use", () => {
+        const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "yuvi-settings-")), "settings.json");
+        const openai = new Settings({ YUVI_LLM: "openai" }, file);
+        openai.saveApiKey("sk-saved-openai-123");
+        openai.saveModel("gpt-picked");
+        expect(openai.apiKey).toBe("sk-saved-openai-123");
+        expect(openai.modelId("main")).toBe("gpt-picked");
+
+        const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+        expect(saved).toEqual({ openaiApiKey: "sk-saved-openai-123", openaiModel: "gpt-picked" });
+        const router = new Settings({}, file);
+        expect(router.apiKey).toBe("");
+        expect(router.modelId("main")).toBe("openrouter/free");
+        fs.rmSync(path.dirname(file), { recursive: true, force: true });
+    });
+
+    test("both provider keys are hidden and kept from shell commands", () => {
+        const settings = new Settings({ ...bothKeys, PATH: "/bin" }, null);
+        expect(settings.secrets()).toContain("sk-or-router-key-123");
+        expect(settings.secrets()).toContain("sk-openai-key-12345");
+        expect(settings.childEnv()).toEqual({ OPENROUTER_DEFAULT_MODEL: "router/model", PATH: "/bin" });
+    });
+
+    test("every provider key variable is a listed secret", () => {
+        for (const profile of Object.values(LLM_PROFILES)) {
+            expect(Settings.SECRET_ENV_NAMES as readonly string[]).toContain(profile.keyEnv);
+        }
+    });
+
+    test("a custom provider without a profile shares OpenRouter's settings", () => {
+        const settings = new Settings({ ...bothKeys, YUVI_LLM: "local" }, null);
+        expect(settings.llmProfile.label).toBe("OpenRouter");
+        expect(settings.apiKey).toBe("sk-or-router-key-123");
+    });
+});
+
 describe("errors", () => {
     test("every error is a YuviError with its own name", () => {
         expect(new BudgetError("x")).toBeInstanceOf(YuviError);
@@ -98,6 +166,14 @@ describe("errors", () => {
         expect(classifyError("request timed out")).toBe("timeout");
         expect(classifyError("502 Bad Gateway")).toBe("provider_down");
         expect(classifyError("???")).toBe("unknown");
+    });
+
+    test("OpenAI failures are recognised", () => {
+        expect(classifyError("Incorrect API key provided: sk-...abcd.")).toBe("auth_rejected");
+        expect(classifyError("OpenAI API key is missing. Pass it using the 'apiKey' parameter")).toBe("auth_missing");
+        expect(classifyError("429 You exceeded your current quota, please check your plan and billing details.")).toBe("no_credits");
+        expect(classifyError("insufficient_quota")).toBe("no_credits");
+        expect(classifyError("The model `gpt-9` does not exist or you do not have access to it.")).toBe("model_not_found");
     });
 });
 
@@ -177,6 +253,13 @@ describe("composition", () => {
         });
         expect(core.search.name).toBe("brave");
         expect(core.models.byId("tiny")).toEqual({ modelId: "tiny" } as never);
+    });
+
+    test("YUVI_LLM=openai builds OpenAI models without any network call", () => {
+        const core = createCore(new Settings({ YUVI_LLM: "openai", OPENAI_API_KEY: "sk-openai-key-12345" }, null));
+        const model = core.models.forRole("main") as { provider: string; modelId: string };
+        expect(model.provider).toStartWith("openai");
+        expect(model.modelId).toBe("gpt-5-mini");
     });
 
     test("ready-made parts are used as given", async () => {

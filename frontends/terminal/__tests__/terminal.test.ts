@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { profileFor } from "../../../core/llm/profiles";
 import { captureOutput, createRecordingHost, plain } from "../../../core/testing";
 import { AgentOutput } from "../../../modes/agent/output";
 import { explainError } from "../errors";
@@ -40,6 +41,18 @@ describe("errors in plain words", () => {
         const explained = explainError(raw);
         expect(explained.problem).toBe(problem);
         expect(explained.fix.length).toBeGreaterThan(10);
+    });
+
+    test("advice names OpenAI and its pages when OpenAI is in use", () => {
+        const openai = profileFor("openai");
+        expect(explainError("Incorrect API key provided", openai)).toEqual({
+            problem: "OpenAI did not accept your API key.",
+            fix: "Type / and choose “Set API key” and paste a fresh key from https://platform.openai.com/api-keys",
+        });
+        const noCredit = explainError("You exceeded your current quota", openai);
+        expect(noCredit.problem).toBe("Your OpenAI account has no credits left for this model.");
+        expect(noCredit.fix).toContain("platform.openai.com");
+        expect(noCredit.fix).not.toContain("openrouter");
     });
 });
 

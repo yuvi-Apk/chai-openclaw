@@ -65,6 +65,7 @@
 "devDependencies": { "@types/bun": "latest" },
 "peerDependencies": { "typescript": "^5" },
 "dependencies": {
+  "@ai-sdk/openai": "4.0.114",
   "@clack/core": "^1.5.1",
   "@clack/prompts": "^1.8.1",
   "@openrouter/ai-sdk-provider": "^3.1.0",
@@ -89,7 +90,8 @@
   - `figlet`: turns text into big ASCII-art letters for the `wakeup` banner ([concepts/figlet-ascii-art.md](../concepts/figlet-ascii-art.md)).
   - `chalk`: adds colours to terminal text, like the banner gradient and green/grey messages ([concepts/chalk-terminal-colors.md](../concepts/chalk-terminal-colors.md)).
   - `ai`: the AI SDK. It provides tools, models, and the `ToolLoopAgent` that runs agent mode ([concepts/ai-sdk-agents.md](../concepts/ai-sdk-agents.md)).
-  - `@openrouter/ai-sdk-provider`: connects the AI SDK to [OpenRouter](../concepts/openrouter.md), the service that supplies the AI model.
+  - `@openrouter/ai-sdk-provider`: connects the AI SDK to [OpenRouter](../concepts/openrouter.md), one service that supplies AI models.
+  - `@ai-sdk/openai`: connects the AI SDK straight to OpenAI. It is used when `YUVI_LLM=openai` ([core/llm/providers.ts](core/llm/providers.ts.md)).
   - `marked` + `marked-terminal`: turn the AI's Markdown replies into coloured terminal text ([concepts/marked-terminal.md](../concepts/marked-terminal.md)).
   - `diff`: compares two texts and produces a `git diff`-style patch, used to preview the agent's changes ([concepts/unified-diffs.md](../concepts/unified-diffs.md)).
   - `@types/node`: type info for Node-style APIs like `process.argv`, `fs`, and `path`.
@@ -99,7 +101,7 @@
 
 **Why it's used here:** `commander` runs the CLI in [index.ts](index.ts.md). `figlet`, `chalk`, and `@clack/prompts` together build the wakeup screen in [terminal-ui/wakeup.ts](terminal-ui/wakeup.ts.md) and the menus in [modes/cli.ts](modes/cli.ts.md). `ai` and `@openrouter/ai-sdk-provider` power agent mode in [modes/agent/orchestrator.ts](modes/agent/orchestrator.ts.md), and `marked` + `marked-terminal` print its answers in [terminal-ui/terminal-md.ts](terminal-ui/terminal-md.ts.md). `diff` builds the change previews in [modes/agent/diff-view.ts](modes/agent/diff-view.ts.md), shown during approval.
 
-💡 **Tip:** `^1.8.1` means "1.8.1 or any newer **1.x** version", but never 2.0. The `^` allows safe minor updates.
+💡 **Tip:** `^1.8.1` means "1.8.1 or any newer **1.x** version", but never 2.0. The `^` allows safe minor updates. `@ai-sdk/openai` is written `"4.0.114"` with no `^`. That is a **pinned** version: every install gets exactly that one. The project's rules ask for pinned versions on new dependencies.
 
 💡 **Tip:** [agent-tools.ts](modes/agent/agent-tools.ts.md) imports `zod`, but zod isn't listed here. It's installed because `ai` needs it (zod is one of `ai`'s *peer dependencies*). Listing a package you import directly in your own `dependencies` makes that relationship explicit: `bun add zod`.
 
@@ -110,4 +112,4 @@
 - `"bin"` is what turns `index.ts` into the `yuvi` command.
 - `dependencies` are needed at runtime; `devDependencies` are only for development.
 - `figlet` (letters), `chalk` (colours), and `@clack/prompts` (menu) work as a team to build the wakeup screen.
-- `ai` + `@openrouter/ai-sdk-provider` give `yuvi` its AI brain, and `marked` + `marked-terminal` make its replies look nice.
+- `ai` + `@openrouter/ai-sdk-provider` or `@ai-sdk/openai` give `yuvi` its AI brain, and `marked` + `marked-terminal` make its replies look nice.

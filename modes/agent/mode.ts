@@ -6,7 +6,7 @@
 import type { ToolSet } from "ai";
 import { ConfigError, errorText } from "../../core/errors";
 import { formatTokens } from "../../core/format";
-import type { Line, Mode, ModeCommand, ModeHost, ModeSession, ModeStatus, Tone } from "../../core/mode";
+import type { HandleOptions, Line, Mode, ModeCommand, ModeHost, ModeSession, ModeStatus, Tone } from "../../core/mode";
 import { ActionTracker } from "./action-tracker";
 import { createAgentTools } from "./agent-tools";
 import { runApprovalFlow } from "./approval";
@@ -125,8 +125,9 @@ class AgentModeSession implements ModeSession {
         };
     }
 
-    async handle(input: string, options: { signal: AbortSignal }): Promise<void> {
+    async handle(input: string, options: HandleOptions): Promise<void> {
         const { session } = this;
+        session.pendingImages = options.images;
         try {
             await runTurn(session, this.brain, attachMentions(session, input), options.signal);
         } catch (error) {
@@ -317,6 +318,7 @@ export function agentMode(start: AgentMode, entry: { name: string; label: string
         tools: AGENT_TOOLS,
         commandStyle: "menu",
         placeholder: "Type your message, then press Enter",
+        acceptsImages: true,
         createSession: (host) => new AgentModeSession(start, host),
     };
 }

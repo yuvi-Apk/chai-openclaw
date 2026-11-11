@@ -114,14 +114,19 @@ After the table, a short paragraph says where *new* code goes, and that tests li
 - Non-trivial task: show a short plan and wait for approval before coding.
 - Implement in small steps; run `bun test` and `bunx tsc --noEmit -p .` after each.
 - Ask before adding any dependency; pin exact versions.
+- `.env` stays blocked for Claude. If a change adds, renames or removes an env
+  variable, end the summary with a ready-to-paste `.env` block (name, dummy or
+  default value, one-line comment) and say which lines to delete; the user edits `.env`.
 - The user commits and pushes themselves. Never run `git commit` or `git push`.
 ```
 
 **What it does:** It describes *how* to work, step by step: read the progress notes first, plan before coding, take small steps, test after each one, ask before adding a package, record big design choices in [decisions.md](../decisions.md), and update [progress.md](../progress.md) at the end. The human always makes the git commits.
 
+It also covers **`.env`**. The assistant may never open that file, because it holds your real keys. So when a change adds, renames or removes a setting, the assistant ends its summary with a ready-to-paste `.env` block and says which old lines to delete. You make the edit yourself. ([environment-variables.md](../concepts/environment-variables.md) explains `.env`.)
+
 **Why it's used in general:** Small steps with tests after each one mean a mistake is caught when it's still small. "Pin exact versions" (e.g. `"1.2.3"` instead of `"^1.2.3"`) means an install next month gives the same code as today.
 
-**Why it's used here:** It keeps the human in charge. That's the same idea as the agent's own approval step: the assistant proposes, the person decides.
+**Why it's used here:** It keeps the human in charge. That's the same idea as the agent's own approval step: the assistant proposes, the person decides. The `.env` rule follows the same idea: secrets stay in your hands, and you still never miss a new setting.
 
 ---
 

@@ -9,7 +9,8 @@ index.ts                     starts a front end and hands it the mode registry
    │
    ▼
 frontends/terminal/          reads input, shows output, asks the user questions
-   │   uses only: core/ and modes/index.ts
+frontends/telegram/          the same job in a Telegram chat (messages and buttons)
+   │   use only: core/ and modes/index.ts
    ▼
 modes/                       the logic of each mode
    ├── index.ts              the registry: one register() line per mode
@@ -37,6 +38,8 @@ core/                        everything the modes share; imports nothing above i
 | `core/testing.ts` | Test doubles: a scripted model and a host with no screen. |
 | `modes/<name>/mode.ts` | The mode's entry point. Everything else in the folder is private to the mode. |
 | `frontends/terminal/` | `app.ts` (main menu), `session-loop.ts` (runs any mode), `renderer.ts` (events to screen), `prompts.ts` (questions), `input.ts` (the input box). |
+| `frontends/telegram/` | `app.ts` (start), `poller.ts` (fetch updates), `router.ts` (allowlist, PIN lock, rate limit), `chat-controller.ts` (one chat: mode, session, turn), `host.ts` (`ModeHost`), `confirm-view.ts` (approval buttons), `questions.ts` (one-time buttons), `lock.ts`, `files.ts`, `commands.ts`, `api/` (Bot API behind `TelegramApi`), `view/` (HTML, activity message, sending). |
+| `core/security/path-safety.ts` | `resolveInside` and `isSensitivePath`: keep file access inside a folder and away from secrets files. |
 
 ## How a message flows
 
@@ -112,7 +115,7 @@ The full definitions, with comments, are in `core/mode.ts`.
 | To change | Do this |
 |---|---|
 | Search engine | Write a class that implements `SearchProvider`, add one entry to `SEARCH_PROVIDERS` in `core/search/providers.ts`, set `YUVI_SEARCH=<name>`. |
-| Model provider | Add one entry to `LLM_PROVIDERS` in `core/llm/providers.ts` that returns an AI SDK model for an id, set `YUVI_LLM=<name>`. |
+| Model provider | Add one entry to `LLM_PROVIDERS` in `core/llm/providers.ts` that returns an AI SDK model for an id, one entry to `LLM_PROFILES` in `core/llm/profiles.ts` (key and model variables, links), and its key name to `Settings.SECRET_ENV_NAMES`; set `YUVI_LLM=<name>`. |
 | History or cache storage | Implement `HistoryStore` or `Cache` and pass it to `createChatEngine` in `modes/chat/factory.ts`. |
 | Front end | Implement `ModeHost` and call `mode.createSession(host)`. `core/testing.ts` has the smallest working example. |
 
@@ -120,10 +123,13 @@ The full definitions, with comments, are in `core/mode.ts`.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `OPENROUTER_API_KEY` | none | Model provider key (can also be saved from the app) |
-| `OPENROUTER_DEFAULT_MODEL` | `openrouter/free` | Main model |
-| `YUVI_MODEL_FAST` | main model | Cheap model for triage, routing and summaries |
-| `YUVI_LLM` | `openrouter` | Model provider |
+| `YUVI_LLM` | `openrouter` | Model provider: `openrouter` or `openai` |
+| `OPENROUTER_API_KEY` | none | OpenRouter key (can also be saved from the app) |
+| `OPENROUTER_DEFAULT_MODEL` | `openrouter/free` | Main model on OpenRouter |
+| `YUVI_MODEL_FAST` | main model | Cheap OpenRouter model for triage, routing and summaries |
+| `OPENAI_API_KEY` | none | OpenAI key, used when `YUVI_LLM=openai` (can also be saved from the app) |
+| `OPENAI_DEFAULT_MODEL` | `gpt-5-mini` | Main model on OpenAI |
+| `OPENAI_FAST_MODEL` | main model | Cheap OpenAI model for triage, routing and summaries |
 | `YUVI_SEARCH` | `auto` | `auto`, `duckduckgo` or `tavily` |
 | `TAVILY_API_KEY` | none | Enables Tavily search |
 | `YUVI_REASONING` | per task | Reasoning effort, or `off` |
@@ -131,6 +137,12 @@ The full definitions, with comments, are in `core/mode.ts`.
 | `YUVI_DEV` | off | `1` shows the example Echo mode |
 | `YUVI_CONTEXT_WINDOW`, `YUVI_TRIAGE`, `YUVI_SELF_REVIEW`, `SKILLS_DIRS` | | Agent mode, see `modes/agent/types.ts` |
 | `YUVI_CHAT_*` | | Chat mode limits, see `modes/chat/config.ts` |
+| `TELEGRAM_BOT_TOKEN` | none | Bot token from @BotFather. Needed for `yuvi telegram` |
+| `YUVI_TELEGRAM_USERS` | none | Comma-separated numeric Telegram user ids allowed to use the bot. Needed |
+| `YUVI_TELEGRAM_PIN` | none | PIN that unlocks the bot, at least 6 characters. Needed |
+| `YUVI_TELEGRAM_LOCK_MINUTES` | 15 | Lock again after this many minutes without a message |
+| `YUVI_TELEGRAM_WORKSPACE` | start folder | Project folder the bot works in |
+| `YUVI_TELEGRAM_PROJECTS` | none | `name=path;name=path`: folders offered by `/project` |
 
 ## Tests
 
